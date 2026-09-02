@@ -14,7 +14,7 @@ from .contract import (
     TrustedAuthorityRootV0,
     verify_receipt_signature,
 )
-from .errors import DatabaseError, IssuanceConflictError, IssuancePolicyError
+from .errors import AuthorityRootError, DatabaseError, IssuanceConflictError, IssuancePolicyError
 from .policy import (
     AuthorityIssuancePolicyV0,
     AuthorityIssuanceRequestV0,
@@ -105,7 +105,8 @@ class AuthorityIssuer:
         try:
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
-                "SELECT request_digest, receipt_bytes FROM issuances WHERE request_id = ?",
+                "SELECT request_digest, authority_epoch, serial, receipt_id, receipt_bytes "
+                "FROM issuances WHERE request_id = ?",
                 (request_id,),
             ).fetchone()
             if existing is not None:
@@ -114,6 +115,11 @@ class AuthorityIssuer:
                         "request_id is already committed to different canonical content"
                     )
                 committed = bytes(existing["receipt_bytes"])
+                self._validate_committed_receipt(
+                    committed,
+                    row=existing,
+                    request=request,
+                )
                 self._commit(connection)
                 return committed
 
@@ -175,9 +181,15 @@ class AuthorityIssuer:
         connection = self._connect()
         try:
             row = connection.execute(
-                "SELECT receipt_bytes FROM issuances WHERE request_id = ?", (request_id,)
+                "SELECT authority_epoch, serial, receipt_id, receipt_bytes "
+                "FROM issuances WHERE request_id = ?",
+                (request_id,),
             ).fetchone()
-            return None if row is None else bytes(row["receipt_bytes"])
+            if row is None:
+                return None
+            committed = bytes(row["receipt_bytes"])
+            self._validate_committed_receipt(committed, row=row)
+            return committed
         finally:
             connection.close()
 
@@ -211,6 +223,34 @@ class AuthorityIssuer:
             trust_config_digest=sha256_hex(config_bytes),
             anchor_bytes=self._public_key_bytes,
         )
+
+    def _validate_committed_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        row: sqlite3.Row,
+        request: AuthorityIssuanceRequestV0 | None = None,
+    ) -> None:
+        """Validate stored bytes before any application API exposes them."""
+        try:
+            receipt = AuthorityGrantReceiptV0.from_bytes(receipt_bytes)
+            verify_receipt_signature(receipt, self._public_key_bytes)
+        except AuthorityRootError as exc:
+            raise DatabaseError(f"committed receipt failed integrity validation: {exc}") from exc
+        expected_fingerprint = sha256_hex(self._public_key_bytes)
+        if (
+            receipt.root_id != self._policy.root_id
+            or receipt.public_key_fingerprint != expected_fingerprint
+            or receipt.authority_epoch != int(row["authority_epoch"])
+            or receipt.serial != int(row["serial"])
+            or receipt.receipt_id != row["receipt_id"]
+        ):
+            raise DatabaseError("committed receipt does not match its immutable ledger row")
+        if request is not None and (
+            receipt.authority_policy != request.authority_policy
+            or receipt.issued_at_epoch_s != request.issued_at_epoch_s
+        ):
+            raise DatabaseError("committed receipt does not match the canonical request")
 
     def _connect(self) -> sqlite3.Connection:
         try:

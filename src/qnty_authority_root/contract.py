@@ -408,6 +408,8 @@ def verify_receipt_signature(receipt: AuthorityGrantReceiptV0 | bytes, public_ke
         raise AuthorityRootError("receipt is not an authority grant")
     if type(public_key_bytes) is not bytes or len(public_key_bytes) != 32:
         raise AuthorityRootError("public key must be exactly 32 bytes")
+    if receipt.public_key_fingerprint != sha256_hex(public_key_bytes):
+        raise AuthorityRootError("authority receipt fingerprint does not identify the supplied key")
     try:
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
