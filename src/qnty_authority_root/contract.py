@@ -32,31 +32,31 @@ MAX_UINT256 = 2**256 - 1
 
 
 def _portable(value: Any, *, field_name: str) -> str:
-    if not isinstance(value, str) or not _PORTABLE_RE.fullmatch(value) or len(value) > 64:
+    if type(value) is not str or not _PORTABLE_RE.fullmatch(value) or len(value) > 64:
         raise AuthorityRootError(f"{field_name}: non-portable identity")
     return value
 
 
 def _digest(value: Any, *, field_name: str) -> str:
-    if not isinstance(value, str) or not _HEX64_RE.fullmatch(value):
+    if type(value) is not str or not _HEX64_RE.fullmatch(value):
         raise AuthorityRootError(f"{field_name}: expected lowercase SHA-256 hex")
     return value
 
 
 def _commit(value: Any, *, field_name: str) -> str:
-    if not isinstance(value, str) or not _COMMIT_RE.fullmatch(value):
+    if type(value) is not str or not _COMMIT_RE.fullmatch(value):
         raise AuthorityRootError(f"{field_name}: expected lowercase 40-character commit")
     return value
 
 
 def _label(value: Any, *, field_name: str) -> str:
-    if not isinstance(value, str) or not value or len(value) > 128 or value.strip() != value:
+    if type(value) is not str or not value or len(value) > 128 or value.strip() != value:
         raise AuthorityRootError(f"{field_name}: must be a short non-empty label")
     return value
 
 
 def _address(value: Any, *, field_name: str) -> str:
-    if not isinstance(value, str) or not _ADDRESS_RE.fullmatch(value):
+    if type(value) is not str or not _ADDRESS_RE.fullmatch(value):
         raise AuthorityRootError(f"{field_name}: expected lowercase EVM address")
     if int(value, 16) == 0:
         raise AuthorityRootError(f"{field_name}: the zero address is not admissible")
@@ -85,14 +85,14 @@ def _atomic(value: Any, *, field_name: str, positive: bool) -> int:
 
 
 def _canonical_atomic(value: Any, *, field_name: str, positive: bool) -> int:
-    if not isinstance(value, str) or not re.fullmatch(r"(?:0|[1-9][0-9]*)", value):
+    if type(value) is not str or not re.fullmatch(r"(?:0|[1-9][0-9]*)", value):
         raise AuthorityRootError(f"{field_name}: non-canonical atomic amount")
     amount = int(value)
     return _atomic(amount, field_name=field_name, positive=positive)
 
 
 def _assert_exact_scope(value: Any, *, field_name: str) -> str:
-    if not isinstance(value, str):
+    if type(value) is not str:
         raise AuthorityRootError(f"{field_name}: exact scope must be a string")
     if value.strip().casefold() in _RESERVED_EXACT_SCOPE_TOKENS:
         raise AuthorityRootError(f"{field_name}: wildcard and alias scopes are forbidden")
@@ -126,7 +126,7 @@ class AuthorityPolicyRefV0:
 
     def __post_init__(self) -> None:
         _portable(self.authority_root_id, field_name="authority_root_id")
-        if not isinstance(self.granted_level, AuthorityLevel):
+        if type(self.granted_level) is not AuthorityLevel:
             raise AuthorityRootError(f"unknown granted_level {self.granted_level!r}")
         _commit(self.permitted_repository_commit, field_name="permitted_repository_commit")
         _assert_exact_scope(self.permitted_repository_commit, field_name="permitted_repository_commit")
@@ -189,7 +189,7 @@ class TrustedAuthorityRootV0:
 
     def __post_init__(self) -> None:
         _portable(self.root_id, field_name="root_id")
-        if self.signature_algorithm != ED25519_SIGNATURE_ALGORITHM:
+        if type(self.signature_algorithm) is not str or self.signature_algorithm != ED25519_SIGNATURE_ALGORITHM:
             raise AuthorityRootError("signature_algorithm must be Ed25519")
         _digest(self.public_key_fingerprint, field_name="public_key_fingerprint")
         if type(self.anchor_bytes) is not bytes or len(self.anchor_bytes) != 32:
@@ -234,12 +234,12 @@ class AuthorityGrantReceiptV0:
     def __post_init__(self) -> None:
         _portable(self.root_id, field_name="root_id")
         _digest(self.public_key_fingerprint, field_name="public_key_fingerprint")
-        if self.signature_algorithm != ED25519_SIGNATURE_ALGORITHM:
+        if type(self.signature_algorithm) is not str or self.signature_algorithm != ED25519_SIGNATURE_ALGORITHM:
             raise AuthorityRootError("signature_algorithm must be Ed25519")
         _positive_int(self.authority_epoch, field_name="authority_epoch")
         _positive_int(self.serial, field_name="serial")
         _non_negative_int(self.issued_at_epoch_s, field_name="issued_at_epoch_s")
-        if not isinstance(self.authority_policy, AuthorityPolicyRefV0):
+        if type(self.authority_policy) is not AuthorityPolicyRefV0:
             raise AuthorityRootError("authority_policy must be AuthorityPolicyRefV0")
         if self.authority_policy.authority_root_id != self.root_id:
             raise AuthorityRootError("receipt root_id disagrees with authority policy")
@@ -402,9 +402,9 @@ def _authority_policy_from_object(document: Any) -> AuthorityPolicyRefV0:
 
 def verify_receipt_signature(receipt: AuthorityGrantReceiptV0 | bytes, public_key_bytes: bytes) -> None:
     """Verify an authority receipt with explicitly supplied public bytes."""
-    if isinstance(receipt, bytes):
+    if type(receipt) is bytes:
         receipt = AuthorityGrantReceiptV0.from_bytes(receipt)
-    if not isinstance(receipt, AuthorityGrantReceiptV0):
+    if type(receipt) is not AuthorityGrantReceiptV0:
         raise AuthorityRootError("receipt is not an authority grant")
     if type(public_key_bytes) is not bytes or len(public_key_bytes) != 32:
         raise AuthorityRootError("public key must be exactly 32 bytes")

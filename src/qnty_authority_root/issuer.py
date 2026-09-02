@@ -19,6 +19,8 @@ from .policy import (
     AuthorityIssuancePolicyV0,
     AuthorityIssuanceRequestV0,
     assert_issuance_request_admissible,
+    snapshot_issuance_policy,
+    snapshot_issuance_request,
     validate_request_id,
 )
 
@@ -48,8 +50,7 @@ class AuthorityIssuer:
         trust_config_version: int,
         signer: Ed25519Signer,
     ) -> None:
-        if not isinstance(issuer_policy, AuthorityIssuancePolicyV0):
-            raise IssuancePolicyError("issuer_policy is not AuthorityIssuancePolicyV0")
+        issuer_policy = snapshot_issuance_policy(issuer_policy)
         if type(authority_epoch) is not int or authority_epoch <= 0:
             raise IssuancePolicyError("authority_epoch must be positive")
         if type(minimum_authority_epoch) is not int or minimum_authority_epoch <= 0:
@@ -100,6 +101,7 @@ class AuthorityIssuer:
     def issue(self, *, request_id: str, request: AuthorityIssuanceRequestV0) -> bytes:
         """Return committed receipt bytes, or fail without returning a receipt."""
         validate_request_id(request_id)
+        request = snapshot_issuance_request(request)
         assert_issuance_request_admissible(self._policy, request)
         request_record_bytes = self._request_record_bytes(request_id, request)
         request_digest = sha256_hex(request_record_bytes)

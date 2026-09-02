@@ -4,7 +4,14 @@ from dataclasses import replace
 
 import pytest
 
-from qnty_authority_root import AuthorityLevel, AuthorityPolicyRefV0, IssuancePolicyError
+from qnty_authority_root import (
+    AuthorityIssuancePolicyV0,
+    AuthorityIssuer,
+    AuthorityLevel,
+    AuthorityPolicyRefV0,
+    AuthorityRootError,
+    IssuancePolicyError,
+)
 from qnty_authority_root.policy import assert_issuance_request_admissible
 
 
@@ -101,4 +108,46 @@ def test_request_policy_digest_is_exact_and_not_repaired(request_factory) -> Non
             max_cumulative_atomic=1,
             not_before_epoch_s=1,
             not_after_epoch_s=2,
+        )
+
+
+class _EqualitySpoofedString(str):
+    def __eq__(self, other: object) -> bool:
+        return other == "evm:46630"
+
+    def __hash__(self) -> int:
+        return hash("evm:46630")
+
+
+class _PolicySubclass(AuthorityIssuancePolicyV0):
+    pass
+
+
+def test_polymorphic_network_scope_is_rejected_at_issuer_boundary(issuer, request_factory) -> None:
+    request = request_factory()
+    object.__setattr__(request.authority_policy, "permitted_network_id", _EqualitySpoofedString("evm:4663"))
+    with pytest.raises(AuthorityRootError, match="network|canonical|exact"):
+        issuer.issue(request_id="reject-polymorphic-network", request=request)
+
+
+def test_policy_subclasses_are_rejected_before_issuance(issuer_policy, signer, tmp_path) -> None:
+    subclass_policy = _PolicySubclass(
+        root_id=issuer_policy.root_id,
+        repository_identity=issuer_policy.repository_identity,
+        maximum_issuable_level=issuer_policy.maximum_issuable_level,
+        allowed_network_ids=issuer_policy.allowed_network_ids,
+        allowed_taker_addresses=issuer_policy.allowed_taker_addresses,
+        allowed_venue_ids=issuer_policy.allowed_venue_ids,
+        max_reservation_atomic=issuer_policy.max_reservation_atomic,
+        max_cumulative_atomic=issuer_policy.max_cumulative_atomic,
+        max_grant_duration_s=issuer_policy.max_grant_duration_s,
+    )
+    with pytest.raises(IssuancePolicyError, match="AuthorityIssuancePolicyV0"):
+        AuthorityIssuer(
+            db_path=tmp_path / "subclass.sqlite3",
+            issuer_policy=subclass_policy,
+            authority_epoch=8,
+            minimum_authority_epoch=7,
+            trust_config_version=1,
+            signer=signer,
         )
