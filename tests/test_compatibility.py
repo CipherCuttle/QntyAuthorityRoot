@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from dataclasses import replace
 
 import pytest
 
@@ -13,7 +14,7 @@ from qnty_authority_root import (
 from qnty_authority_root.canon import canonical_json_bytes, strict_json_loads
 from qnty_authority_root.errors import CanonicalFormError
 
-from conftest import NOW
+from conftest import NOW, TestOnlySigner as _TestOnlySigner
 
 
 def test_canonical_json_is_deterministic_and_strict() -> None:
@@ -44,6 +45,18 @@ def test_receipt_is_exactly_canonical_and_signature_verifies(issuer, request_fac
         "signature_algorithm",
     }
     verify_receipt_signature(raw, issuer.public_anchor_bytes)
+
+
+def test_signature_verification_binds_fingerprint_to_supplied_public_key(
+    issuer, request_factory
+) -> None:
+    request = request_factory()
+    raw = issuer.issue(request_id="fingerprint-binding", request=request)
+    receipt = AuthorityGrantReceiptV0.from_bytes(raw)
+    changed = replace(receipt, public_key_fingerprint="00" * 32)
+    changed = replace(changed, signature=_TestOnlySigner().sign(changed.signed_body_bytes))
+    with pytest.raises(Exception, match="fingerprint"):
+        verify_receipt_signature(changed, issuer.public_anchor_bytes)
 
 
 def test_trust_configuration_is_public_and_digest_pinned(issuer) -> None:

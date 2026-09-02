@@ -21,7 +21,7 @@ _RESERVED = frozenset({"*", "any", "latest"})
 
 
 def _validate_repository_identity(value: Any, *, field: str) -> str:
-    parts = value.split("/") if isinstance(value, str) else []
+    parts = value.split("/") if type(value) is str else []
     if len(parts) != 2 or not all(_REPOSITORY_PART_RE.fullmatch(part or "") for part in parts):
         raise IssuancePolicyError(f"{field}: expected explicit owner/name")
     if value.strip() != value:
@@ -30,7 +30,7 @@ def _validate_repository_identity(value: Any, *, field: str) -> str:
 
 
 def _exact_scope(value: Any, *, field: str) -> str:
-    if not isinstance(value, str) or not value:
+    if type(value) is not str or not value:
         raise IssuancePolicyError(f"{field}: exact scope must be non-empty text")
     if value.strip().casefold() in _RESERVED:
         raise IssuancePolicyError(f"{field}: wildcard and alias scopes are forbidden")
@@ -59,12 +59,12 @@ class AuthorityIssuancePolicyV0:
     schema: str = "qntyspot.authority_root.v0.issuance_policy"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.root_id, str) or not _PORTABLE_RE.fullmatch(self.root_id) or len(self.root_id) > 64:
+        if type(self.root_id) is not str or not _PORTABLE_RE.fullmatch(self.root_id) or len(self.root_id) > 64:
             raise IssuancePolicyError("root_id: non-portable identity")
         if self.repository_identity != CANONICAL_REPOSITORY_IDENTITY:
             raise IssuancePolicyError("repository_identity must be CipherCuttle/QntySpot")
         _validate_repository_identity(self.repository_identity, field="repository_identity")
-        if not isinstance(self.maximum_issuable_level, AuthorityLevel):
+        if type(self.maximum_issuable_level) is not AuthorityLevel:
             raise IssuancePolicyError("maximum_issuable_level is not an AuthorityLevel")
         if self.maximum_issuable_level > AuthorityLevel.HUMAN_SIGNED_EXECUTION:
             raise IssuancePolicyError("maximum issuer authority exceeds HUMAN_SIGNED_EXECUTION")
@@ -88,7 +88,7 @@ class AuthorityIssuancePolicyV0:
         _positive(self.max_grant_duration_s, field="max_grant_duration_s")
         if self.max_grant_duration_s > MAX_GRANT_DURATION_S:
             raise IssuancePolicyError("grant duration ceiling exceeds 3600 seconds")
-        if self.schema != "qntyspot.authority_root.v0.issuance_policy":
+        if type(self.schema) is not str or self.schema != "qntyspot.authority_root.v0.issuance_policy":
             raise IssuancePolicyError("unknown issuance policy schema")
 
     def canonical_object(self) -> dict[str, Any]:
@@ -120,7 +120,7 @@ class AuthorityIssuanceRequestV0:
 
     def __post_init__(self) -> None:
         _validate_repository_identity(self.repository_identity, field="repository_identity")
-        if not isinstance(self.authority_policy, AuthorityPolicyRefV0):
+        if type(self.authority_policy) is not AuthorityPolicyRefV0:
             raise IssuancePolicyError("authority_policy must be AuthorityPolicyRefV0")
         if type(self.issued_at_epoch_s) is not int or self.issued_at_epoch_s < 0:
             raise IssuancePolicyError("issued_at_epoch_s must be a non-negative integer")
@@ -143,10 +143,12 @@ def assert_issuance_request_admissible(
     request: AuthorityIssuanceRequestV0,
 ) -> None:
     """Reject every request outside the V0 issuer boundary."""
-    if not isinstance(policy, AuthorityIssuancePolicyV0):
+    if type(policy) is not AuthorityIssuancePolicyV0:
         raise IssuancePolicyError("issuer policy is not AuthorityIssuancePolicyV0")
-    if not isinstance(request, AuthorityIssuanceRequestV0):
+    if type(request) is not AuthorityIssuanceRequestV0:
         raise IssuancePolicyError("issuance request is not AuthorityIssuanceRequestV0")
+    if type(request.authority_policy) is not AuthorityPolicyRefV0:
+        raise IssuancePolicyError("authority_policy is not AuthorityPolicyRefV0")
     if request.repository_identity != policy.repository_identity:
         raise IssuancePolicyError("issuance request targets a different repository")
     authority = request.authority_policy
@@ -180,8 +182,53 @@ def assert_issuance_request_admissible(
 
 
 def validate_request_id(request_id: Any) -> str:
-    if not isinstance(request_id, str) or not _REQUEST_ID_RE.fullmatch(request_id) or len(request_id) > 64:
+    if type(request_id) is not str or not _REQUEST_ID_RE.fullmatch(request_id) or len(request_id) > 64:
         raise IssuancePolicyError("request_id must be a portable lowercase stable identifier")
     if request_id.casefold() in _RESERVED:
         raise IssuancePolicyError("request_id cannot be a wildcard or alias")
     return request_id
+
+
+def snapshot_issuance_policy(policy: AuthorityIssuancePolicyV0) -> AuthorityIssuancePolicyV0:
+    """Copy an exact issuer policy into concrete, validated built-in values."""
+    if type(policy) is not AuthorityIssuancePolicyV0:
+        raise IssuancePolicyError("issuer_policy is not AuthorityIssuancePolicyV0")
+    return AuthorityIssuancePolicyV0(
+        root_id=policy.root_id,
+        repository_identity=policy.repository_identity,
+        maximum_issuable_level=policy.maximum_issuable_level,
+        allowed_network_ids=policy.allowed_network_ids,
+        allowed_taker_addresses=policy.allowed_taker_addresses,
+        allowed_venue_ids=policy.allowed_venue_ids,
+        max_reservation_atomic=policy.max_reservation_atomic,
+        max_cumulative_atomic=policy.max_cumulative_atomic,
+        max_grant_duration_s=policy.max_grant_duration_s,
+        schema=policy.schema,
+    )
+
+
+def snapshot_issuance_request(request: AuthorityIssuanceRequestV0) -> AuthorityIssuanceRequestV0:
+    """Copy an exact request into concrete, validated built-in values."""
+    if type(request) is not AuthorityIssuanceRequestV0:
+        raise IssuancePolicyError("issuance request is not AuthorityIssuanceRequestV0")
+    authority = request.authority_policy
+    if type(authority) is not AuthorityPolicyRefV0:
+        raise IssuancePolicyError("authority_policy is not AuthorityPolicyRefV0")
+    return AuthorityIssuanceRequestV0(
+        repository_identity=request.repository_identity,
+        authority_policy=AuthorityPolicyRefV0(
+            authority_root_id=authority.authority_root_id,
+            granted_level=authority.granted_level,
+            permitted_repository_commit=authority.permitted_repository_commit,
+            permitted_implementation_digest=authority.permitted_implementation_digest,
+            permitted_network_id=authority.permitted_network_id,
+            permitted_taker_address=authority.permitted_taker_address,
+            permitted_venue_id=authority.permitted_venue_id,
+            max_reservation_atomic=authority.max_reservation_atomic,
+            max_cumulative_atomic=authority.max_cumulative_atomic,
+            not_before_epoch_s=authority.not_before_epoch_s,
+            not_after_epoch_s=authority.not_after_epoch_s,
+            schema=authority.schema,
+        ),
+        issued_at_epoch_s=request.issued_at_epoch_s,
+    )

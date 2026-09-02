@@ -25,6 +25,8 @@ from .policy import (
     AuthorityIssuancePolicyV0,
     AuthorityIssuanceRequestV0,
     assert_issuance_request_admissible,
+    snapshot_issuance_policy,
+    snapshot_issuance_request,
 )
 
 __all__ = [
@@ -47,6 +49,8 @@ __all__ = [
     "IssuancePolicyError",
     "TrustedAuthorityRootV0",
     "assert_issuance_request_admissible",
+    "snapshot_issuance_policy",
+    "snapshot_issuance_request",
     "canonical_json_bytes",
     "digest_object",
     "sha256_hex",
