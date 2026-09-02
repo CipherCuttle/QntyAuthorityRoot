@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Protocol
 
-from .canon import canonical_json_bytes, sha256_hex
+from .canon import canonical_json_bytes, sha256_hex, strict_json_loads
 from .contract import (
     AUTHORITY_ROOT_SCHEMA,
     ED25519_SIGNATURE_ALGORITHM,
@@ -22,7 +22,8 @@ from .policy import (
     validate_request_id,
 )
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
+_REQUEST_RECORD_SCHEMA = "qntyspot.authority_root.v0.issuance_record"
 
 
 class Ed25519Signer(Protocol):
@@ -100,12 +101,13 @@ class AuthorityIssuer:
         """Return committed receipt bytes, or fail without returning a receipt."""
         validate_request_id(request_id)
         assert_issuance_request_admissible(self._policy, request)
-        request_digest = request.request_digest
+        request_record_bytes = self._request_record_bytes(request_id, request)
+        request_digest = sha256_hex(request_record_bytes)
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
-                "SELECT request_digest, authority_epoch, serial, receipt_id, receipt_bytes "
+                "SELECT request_id, request_digest, request_bytes, authority_epoch, serial, receipt_id, receipt_bytes "
                 "FROM issuances WHERE request_id = ?",
                 (request_id,),
             ).fetchone()
@@ -119,6 +121,8 @@ class AuthorityIssuer:
                     committed,
                     row=existing,
                     request=request,
+                    request_id=request_id,
+                    expected_request_record_bytes=request_record_bytes,
                 )
                 self._commit(connection)
                 return committed
@@ -153,11 +157,12 @@ class AuthorityIssuer:
             verify_receipt_signature(parsed, self._public_key_bytes)
             connection.execute(
                 "INSERT INTO issuances "
-                "(request_id, request_digest, authority_epoch, serial, receipt_id, receipt_bytes) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "(request_id, request_digest, request_bytes, authority_epoch, serial, receipt_id, receipt_bytes) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     request_id,
                     request_digest,
+                    request_record_bytes,
                     receipt.authority_epoch,
                     receipt.serial,
                     receipt.receipt_id,
@@ -181,14 +186,14 @@ class AuthorityIssuer:
         connection = self._connect()
         try:
             row = connection.execute(
-                "SELECT authority_epoch, serial, receipt_id, receipt_bytes "
+                "SELECT request_id, request_digest, request_bytes, authority_epoch, serial, receipt_id, receipt_bytes "
                 "FROM issuances WHERE request_id = ?",
                 (request_id,),
             ).fetchone()
             if row is None:
                 return None
             committed = bytes(row["receipt_bytes"])
-            self._validate_committed_receipt(committed, row=row)
+            self._validate_committed_receipt(committed, row=row, request_id=request_id)
             return committed
         finally:
             connection.close()
@@ -230,9 +235,30 @@ class AuthorityIssuer:
         *,
         row: sqlite3.Row,
         request: AuthorityIssuanceRequestV0 | None = None,
+        request_id: str,
+        expected_request_record_bytes: bytes | None = None,
     ) -> None:
         """Validate stored bytes before any application API exposes them."""
         try:
+            request_record_bytes = row["request_bytes"]
+            if type(request_record_bytes) is not bytes:
+                raise DatabaseError("committed request record is not bytes")
+            request_record = strict_json_loads(request_record_bytes)
+            expected_request_fields = {
+                "authority_policy", "issued_at_epoch_s", "repository_identity", "request_id", "schema"
+            }
+            if type(request_record) is not dict or set(request_record) != expected_request_fields:
+                raise DatabaseError("committed request record has unknown or missing fields")
+            if request_record["schema"] != _REQUEST_RECORD_SCHEMA:
+                raise DatabaseError("committed request record has an unknown schema")
+            if canonical_json_bytes(request_record) != request_record_bytes:
+                raise DatabaseError("committed request record is not canonical JSON")
+            if request_record["request_id"] != request_id:
+                raise DatabaseError("committed request record is bound to a different request id")
+            if sha256_hex(request_record_bytes) != row["request_digest"]:
+                raise DatabaseError("committed request record digest does not match its ledger row")
+            if expected_request_record_bytes is not None and request_record_bytes != expected_request_record_bytes:
+                raise DatabaseError("committed request record does not match the canonical request")
             receipt = AuthorityGrantReceiptV0.from_bytes(receipt_bytes)
             verify_receipt_signature(receipt, self._public_key_bytes)
         except AuthorityRootError as exc:
@@ -244,12 +270,20 @@ class AuthorityIssuer:
             or receipt.authority_epoch != int(row["authority_epoch"])
             or receipt.serial != int(row["serial"])
             or receipt.receipt_id != row["receipt_id"]
+            or request_record["authority_policy"] != receipt.authority_policy.canonical_object()
+            or request_record["issued_at_epoch_s"] != receipt.issued_at_epoch_s
         ):
             raise DatabaseError("committed receipt does not match its immutable ledger row")
-        if request is not None and (
-            receipt.authority_policy != request.authority_policy
-            or receipt.issued_at_epoch_s != request.issued_at_epoch_s
-        ):
+        stored_request = AuthorityIssuanceRequestV0(
+            repository_identity=request_record["repository_identity"],
+            authority_policy=receipt.authority_policy,
+            issued_at_epoch_s=request_record["issued_at_epoch_s"],
+        )
+        try:
+            assert_issuance_request_admissible(self._policy, stored_request)
+        except IssuancePolicyError as exc:
+            raise DatabaseError(f"committed request is no longer admissible: {exc}") from exc
+        if request is not None and request != stored_request:
             raise DatabaseError("committed receipt does not match the canonical request")
 
     def _connect(self) -> sqlite3.Connection:
@@ -289,7 +323,7 @@ class AuthorityIssuer:
             )
             connection.execute(
                 "CREATE TABLE IF NOT EXISTS issuances ("
-                "request_id TEXT PRIMARY KEY, request_digest TEXT NOT NULL, "
+                "request_id TEXT PRIMARY KEY, request_digest TEXT NOT NULL, request_bytes BLOB NOT NULL, "
                 "authority_epoch INTEGER NOT NULL, serial INTEGER NOT NULL UNIQUE, "
                 "receipt_id TEXT NOT NULL UNIQUE, receipt_bytes BLOB NOT NULL)"
             )
@@ -330,6 +364,7 @@ class AuthorityIssuer:
                 (
                     "request_id",
                     "request_digest",
+                    "request_bytes",
                     "authority_epoch",
                     "serial",
                     "receipt_id",
@@ -379,6 +414,19 @@ class AuthorityIssuer:
         actual = tuple(row[1] for row in connection.execute(f"PRAGMA table_info({table})"))
         if actual != expected_columns:
             raise DatabaseError(f"issuance database table {table!r} has an unsupported schema")
+
+    def _request_record_bytes(
+        self, request_id: str, request: AuthorityIssuanceRequestV0
+    ) -> bytes:
+        return canonical_json_bytes(
+            {
+                "authority_policy": request.authority_policy.canonical_object(),
+                "issued_at_epoch_s": request.issued_at_epoch_s,
+                "repository_identity": request.repository_identity,
+                "request_id": request_id,
+                "schema": _REQUEST_RECORD_SCHEMA,
+            }
+        )
 
     def _commit(self, connection: sqlite3.Connection) -> None:
         connection.commit()

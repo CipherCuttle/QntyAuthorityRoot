@@ -66,6 +66,23 @@ def test_idempotent_and_read_paths_reject_tampered_stored_bytes(issuer, request_
         issuer.get_committed("tampered-row")
 
 
+def test_read_path_rejects_tampered_request_binding(issuer, request_factory) -> None:
+    request = request_factory()
+    issuer.issue(request_id="tampered-binding", request=request)
+    connection = sqlite3.connect(issuer._db_path)
+    try:
+        connection.execute("DROP TRIGGER issuances_no_update")
+        connection.execute(
+            "UPDATE issuances SET request_digest = ? WHERE request_id = ?",
+            ("aa" * 32, "tampered-binding"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    with pytest.raises(Exception, match="integrity|digest"):
+        issuer.get_committed("tampered-binding")
+
+
 def test_concurrent_distinct_requests_have_unique_monotone_serials(issuer, request_factory) -> None:
     def issue(index: int) -> bytes:
         return issuer.issue(request_id=f"concurrent-{index}", request=request_factory())
