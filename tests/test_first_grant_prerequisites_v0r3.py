@@ -29,7 +29,6 @@ from qnty_authority_root.policy import validate_request_id
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = ROOT / "artifacts/FIRST_GRANT_PREREQUISITES_V0R3.json"
 SIDECAR = ROOT / "artifacts/FIRST_GRANT_PREREQUISITES_V0R3.sha256"
-QNTYSPOT_REPO = ROOT.parents[1] / "repos/QntySpot"
 
 QNTYAUTHORITYROOT_PARENT = "1f53a26ecffd8efa844ad74cf77cc14c1f37e171"
 QNTYSPOT_COMMIT = "6a23171e790e8ae95c9b7bf6c2b55fe6d06a66bf"
@@ -47,6 +46,34 @@ BLOCKED_V0R2_POLICY_DIGEST = "842c02de77239d67c00ef1f2c0055048c87741f3e37653731c
 BLOCKED_V0R2_ARTIFACT_DIGEST = "5c8747ec7fcdb597e21602692fb9c2697622002a76096f6a8b76efa81a1bf2fe"
 OLD_IMPLEMENTATION_DIGEST = "2da5b936e8cb657d5204a161c27cc94862a18099db838a1c97e77deccb6b9f9d"
 OLD_VENUE = "0x-swap-v2-robinhood-chain"
+
+
+def _resolve_qntyspot_repo() -> Path:
+    candidates = (
+        ROOT.parent / "QntySpot",
+        ROOT.parents[1] / "repos/QntySpot",
+    )
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(candidate),
+                "rev-parse",
+                "--verify",
+                f"{QNTYSPOT_COMMIT}^{{commit}}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip() == QNTYSPOT_COMMIT:
+            return candidate
+    raise RuntimeError("exact canonical QntySpot checkout not available in supported test layouts")
+
+
+QNTYSPOT_REPO = _resolve_qntyspot_repo()
 
 
 EXPECTED_ISSUER_POLICY = {
