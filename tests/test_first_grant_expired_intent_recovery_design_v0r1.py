@@ -6,9 +6,12 @@ from qnty_authority_root import canonical_json_bytes, sha256_hex, strict_json_lo
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PREDECESSOR_DESIGN = ROOT / "artifacts/FIRST_GRANT_DESIGN_V0R1.json"
+PREDECESSOR_SIDECAR = ROOT / "artifacts/FIRST_GRANT_DESIGN_V0R1.sha256"
 DESIGN = ROOT / "artifacts/FIRST_GRANT_EXPIRED_INTENT_RECOVERY_DESIGN_V0R1.json"
 SIDECAR = ROOT / "artifacts/FIRST_GRANT_EXPIRED_INTENT_RECOVERY_DESIGN_V0R1.sha256"
 
+FIRST_GRANT_DESIGN_DIGEST = "1d2b4c14c1d4f3f24f91240e82d14f315060f0b0a77cda3e80a76f11027a5cc8"
 ORIGINAL_REQUEST_ID = "qnty-first-production-shadow-grant-v0"
 SUCCESSOR_REQUEST_ID = "qnty-first-production-shadow-grant-v0r1"
 ORIGINAL_INTENT_DIGEST = "b37bbf8e64f3302635c8a26bee719f98fdeb0f336a45ffbf7d6a246e3763664a"
@@ -52,11 +55,48 @@ def _timing_contract(document: dict[str, object]) -> dict[str, object]:
     return timing
 
 
+def test_first_grant_design_artifact_and_sidecar_are_exactly_bound() -> None:
+    raw = PREDECESSOR_DESIGN.read_bytes()
+    document = strict_json_loads(raw)
+    assert isinstance(document, dict)
+    assert canonical_json_bytes(document) == raw
+    assert sha256_hex(raw) == FIRST_GRANT_DESIGN_DIGEST
+    assert PREDECESSOR_SIDECAR.read_text(encoding="ascii") == (
+        f"{FIRST_GRANT_DESIGN_DIGEST}  {PREDECESSOR_DESIGN.name}\n"
+    )
+
+
 def test_artifact_and_sidecar_bind_exact_canonical_bytes() -> None:
     raw, document = _design()
     assert canonical_json_bytes(document) == raw
     fields = SIDECAR.read_text(encoding="utf-8").split()
     assert fields == [sha256_hex(raw), DESIGN.name]
+
+
+def test_recovery_canonical_inputs_explicitly_bind_predecessor_design() -> None:
+    _, document = _design()
+    inputs = document["canonical_inputs"]
+    assert inputs["first_grant_design_v0r1_digest"] == FIRST_GRANT_DESIGN_DIGEST
+
+
+def test_successor_requires_distinct_predecessor_and_recovery_design_bindings() -> None:
+    _, document = _design()
+    successor = document["successor_request_contract"]
+    bindings = successor["required_successor_intent_bindings"]
+    assert bindings.count("first_grant_design_artifact_digest") == 1
+    assert bindings.count("recovery_design_artifact_digest") == 1
+    assert "design_artifact_digest" not in bindings
+    assert successor["first_grant_design_artifact_digest"] == FIRST_GRANT_DESIGN_DIGEST
+
+
+def test_recovery_design_digest_is_sidecar_resolved_without_self_reference() -> None:
+    raw, document = _design()
+    successor = document["successor_request_contract"]
+    assert successor["recovery_design_artifact_digest_source"] == (
+        "canonical recovery-design sidecar"
+    )
+    assert successor["recovery_design_artifact_digest_resolved_during_successor_issuance_preflight"] == "YES"
+    assert b'"recovery_design_artifact_digest":"' not in raw
 
 
 def test_timing_contract_freezes_complete_pre_clock_readiness_and_key_rule() -> None:
@@ -70,6 +110,7 @@ def test_timing_contract_freezes_complete_pre_clock_readiness_and_key_rule() -> 
         "all_qntyspot_checkout_worktree_preparation_completed": "YES",
         "all_required_imports_and_local_runtime_setup_complete": "YES",
         "authority_root_canonical_verified": "YES",
+        "first_grant_design_v0r1_digest_verified": "YES",
         "frozen_issuer_source_verified": "YES",
         "issuer_policy_verified": "YES",
         "no_foreign_ledger_history": "YES",
@@ -86,6 +127,7 @@ def test_timing_contract_freezes_complete_pre_clock_readiness_and_key_rule() -> 
         "qntyspot_canonical_verified": "YES",
         "qntyspot_implementation_digest_verified": "YES",
         "qntyspot_verification_runtime_prepared": "YES",
+        "recovery_design_artifact_digest_verified": "YES",
         "recovery_design_canonical_verified": "YES",
         "successor_intent_absent_or_exact_recovery_state": "YES",
         "trust_config_verified": "YES",
@@ -104,6 +146,22 @@ def test_timing_contract_freezes_complete_pre_clock_readiness_and_key_rule() -> 
         "private_key_content_accessed_pre_clock": "NO",
         "provisioned_private_key_locator_resolution_pre_clock": "PERMITTED_WITHOUT_OPENING_CONTENT",
     }
+
+
+def test_design_digest_verifications_are_required_before_successor_clock_capture() -> None:
+    _, document = _design()
+    timing = _timing_contract(document)
+    readiness = timing["pre_clock_readiness"]
+    assert readiness["first_grant_design_v0r1_digest_verified"] == "YES"
+    assert readiness["recovery_design_artifact_digest_verified"] == "YES"
+    assert timing["clock_capture"]["successor_clock_capture_point"] == (
+        "AFTER_ALL_EXPENSIVE_NONSECRET_READINESS_IMMEDIATELY_BEFORE_DURABLE_SUCCESSOR_INTENT"
+    )
+    post_clock_operations = [
+        entry["operation"] for entry in timing["post_clock_critical_section"]
+    ]
+    assert "FIRST_GRANT_DESIGN_V0R1_DIGEST_VERIFIED" not in post_clock_operations
+    assert "RECOVERY_DESIGN_ARTIFACT_DIGEST_VERIFIED" not in post_clock_operations
 
 
 def test_clock_capture_and_post_clock_sequence_are_exactly_ordered() -> None:
