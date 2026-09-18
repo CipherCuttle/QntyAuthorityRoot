@@ -48,7 +48,7 @@ class QualificationSigner:
         return self._key.sign(message)
 
 
-def test_short_lived_level3_receipt_verifies_but_cannot_escape_source_ceiling(tmp_path) -> None:
+def test_short_lived_level3_receipt_verifies_at_exact_current_qntyspot_scope(tmp_path) -> None:
     bundle = issue_ink_v0f_grant(
         db_path=tmp_path / "qualification.sqlite3",
         signer=QualificationSigner(),
@@ -96,17 +96,18 @@ def test_short_lived_level3_receipt_verifies_but_cannot_escape_source_ceiling(tm
         verified_grant=verified,
         now_epoch_s=NOW,
     )
-    assert PHASE_GRANTED_AUTHORITY_LEVEL is AuthorityLevel.RECONCILE_ONLY
-    assert effective is AuthorityLevel.RECONCILE_ONLY
+    assert PHASE_GRANTED_AUTHORITY_LEVEL is AuthorityLevel.HUMAN_SIGNED_EXECUTION
+    assert effective is AuthorityLevel.HUMAN_SIGNED_EXECUTION
 
     capabilities = effective_capabilities(
         source_phase_ceiling=PHASE_GRANTED_AUTHORITY_LEVEL,
         verified_grant=verified,
         now_epoch_s=NOW,
+        session=session,
     )
-    assert Capability.SUBMIT_EXACT_BYTES not in capabilities
-    assert Capability.CONSTRUCT_ENVELOPE not in capabilities
-    assert Capability.AUTHORIZE_APPROVAL not in capabilities
+    assert Capability.SUBMIT_EXACT_BYTES in capabilities
+    assert Capability.CONSTRUCT_ENVELOPE in capabilities
+    assert Capability.AUTHORIZE_APPROVAL in capabilities
     assert Capability.PRODUCE_SIGNATURE not in capabilities
     assert SIGNING_AUTHORIZED is False
     assert LIVE_CAPITAL_AUTHORIZED is False
