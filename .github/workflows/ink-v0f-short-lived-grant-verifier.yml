@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: CipherCuttle/QntySpot
-          ref: 428f373e61f76966cbbf1ebe1d565f50faa27e5c
+          ref: 7b10a1a74607a9d2bf35438b89f02755b689d4ec
           path: QntySpot
           fetch-depth: 0
 

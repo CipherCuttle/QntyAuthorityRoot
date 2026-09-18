@@ -96,14 +96,15 @@ def test_short_lived_level3_receipt_verifies_but_cannot_escape_source_ceiling(tm
         verified_grant=verified,
         now_epoch_s=NOW,
     )
-    assert effective is PHASE_GRANTED_AUTHORITY_LEVEL
-    assert effective < AuthorityLevel.HUMAN_SIGNED_EXECUTION
+    assert PHASE_GRANTED_AUTHORITY_LEVEL is AuthorityLevel.RECONCILE_ONLY
+    assert effective is AuthorityLevel.RECONCILE_ONLY
 
     capabilities = effective_capabilities(
         source_phase_ceiling=PHASE_GRANTED_AUTHORITY_LEVEL,
         verified_grant=verified,
         now_epoch_s=NOW,
     )
+    assert Capability.SUBMIT_EXACT_BYTES not in capabilities
     assert Capability.CONSTRUCT_ENVELOPE not in capabilities
     assert Capability.AUTHORIZE_APPROVAL not in capabilities
     assert Capability.PRODUCE_SIGNATURE not in capabilities
