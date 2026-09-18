@@ -9,10 +9,21 @@ from typing import Any
 from .canon import digest_object
 from .contract import AuthorityLevel, AuthorityPolicyRefV0, MAX_UINT256
 from .errors import IssuancePolicyError
+from .risk import (
+    INK_V0F_DUST_RISK_POLICY,
+    INK_V0F_NETWORK_ID,
+    INK_V0F_VENUE_ID,
+    assert_ink_v0f_authority_policy_admissible,
+)
 
 CANONICAL_REPOSITORY_IDENTITY = "CipherCuttle/QntySpot"
-ALLOWED_NETWORK_ID = "evm:46630"
+LEGACY_ROBINHOOD_TESTNET_NETWORK_ID = "evm:46630"
+# Backwards-compatible export used by the historical testnet fixtures.
+ALLOWED_NETWORK_ID = LEGACY_ROBINHOOD_TESTNET_NETWORK_ID
 FORBIDDEN_MAINNET_NETWORK_ID = "evm:4663"
+SUPPORTED_NETWORK_IDS = frozenset(
+    {LEGACY_ROBINHOOD_TESTNET_NETWORK_ID, INK_V0F_NETWORK_ID}
+)
 MAX_GRANT_DURATION_S = 3600
 _REPOSITORY_PART_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 _REQUEST_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
@@ -68,8 +79,14 @@ class AuthorityIssuancePolicyV0:
             raise IssuancePolicyError("maximum_issuable_level is not an AuthorityLevel")
         if self.maximum_issuable_level > AuthorityLevel.HUMAN_SIGNED_EXECUTION:
             raise IssuancePolicyError("maximum issuer authority exceeds HUMAN_SIGNED_EXECUTION")
-        if type(self.allowed_network_ids) is not tuple or self.allowed_network_ids != (ALLOWED_NETWORK_ID,):
-            raise IssuancePolicyError("allowed_network_ids must be exactly (evm:46630,)")
+        if (
+            type(self.allowed_network_ids) is not tuple
+            or len(self.allowed_network_ids) != 1
+            or self.allowed_network_ids[0] not in SUPPORTED_NETWORK_IDS
+        ):
+            raise IssuancePolicyError(
+                "allowed_network_ids must name exactly one supported issuance profile"
+            )
         for field_name, values in (
             ("allowed_network_ids", self.allowed_network_ids),
             ("allowed_taker_addresses", self.allowed_taker_addresses),
@@ -88,6 +105,28 @@ class AuthorityIssuancePolicyV0:
         _positive(self.max_grant_duration_s, field="max_grant_duration_s")
         if self.max_grant_duration_s > MAX_GRANT_DURATION_S:
             raise IssuancePolicyError("grant duration ceiling exceeds 3600 seconds")
+        if self.allowed_network_ids == (INK_V0F_NETWORK_ID,):
+            if self.allowed_venue_ids != (INK_V0F_VENUE_ID,):
+                raise IssuancePolicyError(
+                    "Ink V0F issuer policy must allow exactly inkyswap-v2-ink-mainnet"
+                )
+            if len(self.allowed_taker_addresses) != 1:
+                raise IssuancePolicyError("Ink V0F issuer policy must bind exactly one taker")
+            if self.max_reservation_atomic > INK_V0F_DUST_RISK_POLICY.max_entry_atomic:
+                raise IssuancePolicyError(
+                    "Ink V0F issuer reservation ceiling exceeds the dust envelope"
+                )
+            if (
+                self.max_cumulative_atomic
+                > INK_V0F_DUST_RISK_POLICY.max_cumulative_entry_atomic
+            ):
+                raise IssuancePolicyError(
+                    "Ink V0F issuer cumulative ceiling exceeds the dust envelope"
+                )
+            if self.max_grant_duration_s > INK_V0F_DUST_RISK_POLICY.max_grant_duration_s:
+                raise IssuancePolicyError(
+                    "Ink V0F issuer grant duration exceeds the dust envelope"
+                )
         if type(self.schema) is not str or self.schema != "qntyspot.authority_root.v0.issuance_policy":
             raise IssuancePolicyError("unknown issuance policy schema")
 
@@ -160,8 +199,8 @@ def assert_issuance_request_admissible(
         raise IssuancePolicyError("AUTONOMOUS_BOUNDED_SIGNER is not issuable")
     if authority.permitted_network_id == FORBIDDEN_MAINNET_NETWORK_ID:
         raise IssuancePolicyError("evm:4663 mainnet is forbidden")
-    if authority.permitted_network_id != ALLOWED_NETWORK_ID:
-        raise IssuancePolicyError("issuance network is not Robinhood testnet evm:46630")
+    if authority.permitted_network_id not in SUPPORTED_NETWORK_IDS:
+        raise IssuancePolicyError("issuance network has no reviewed issuance profile")
     if authority.permitted_network_id not in policy.allowed_network_ids:
         raise IssuancePolicyError("issuance network is not allowed")
     if authority.permitted_taker_address not in policy.allowed_taker_addresses:
@@ -172,6 +211,11 @@ def assert_issuance_request_admissible(
         raise IssuancePolicyError("issuance reservation ceiling exceeds issuer policy")
     if authority.max_cumulative_atomic > policy.max_cumulative_atomic:
         raise IssuancePolicyError("issuance cumulative ceiling exceeds issuer policy")
+    if authority.permitted_network_id == INK_V0F_NETWORK_ID:
+        assert_ink_v0f_authority_policy_admissible(
+            authority,
+            repository_identity=request.repository_identity,
+        )
     duration = authority.not_after_epoch_s - authority.not_before_epoch_s
     if duration <= 0:
         raise IssuancePolicyError("grant duration must be positive")
