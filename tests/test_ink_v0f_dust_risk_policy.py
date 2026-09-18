@@ -22,8 +22,7 @@ from qnty_authority_root.risk import (
     INK_V0F_NETWORK_ID,
     INK_V0F_PROFIT_RECYCLE_RATIO,
     INK_V0F_VENUE_ID,
-    QNTYSPOT_V0F_IMPLEMENTATION_DIGEST,
-    QNTYSPOT_V0F_REPOSITORY_COMMIT,
+    InkV0FDustRiskPolicyV0,
     assert_ink_v0f_authority_policy_admissible,
 )
 
@@ -48,8 +47,8 @@ def _request(taker: str) -> AuthorityIssuanceRequestV0:
         authority_policy=AuthorityPolicyRefV0(
             authority_root_id="qnty-authority-root-v0",
             granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
-            permitted_repository_commit=QNTYSPOT_V0F_REPOSITORY_COMMIT,
-            permitted_implementation_digest=QNTYSPOT_V0F_IMPLEMENTATION_DIGEST,
+            permitted_repository_commit="b" * 40,
+            permitted_implementation_digest="c" * 64,
             permitted_network_id=INK_V0F_NETWORK_ID,
             permitted_taker_address=taker,
             permitted_venue_id=INK_V0F_VENUE_ID,
@@ -100,8 +99,6 @@ def test_exact_ink_dust_request_is_issuable_offline(signer, tmp_path) -> None:
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     (
-        ("permitted_repository_commit", "0" * 40, "unreviewed QntySpot commit"),
-        ("permitted_implementation_digest", "0" * 64, "implementation digest"),
         ("permitted_venue_id", "other-venue", "venue"),
         ("max_reservation_atomic", INK_V0F_MAX_ENTRY_ATOMIC + 1, "entry cap"),
         (
@@ -146,3 +143,18 @@ def test_ink_issuer_policy_itself_cannot_be_wider_than_risk_envelope() -> None:
         replace(_issuer_policy(taker), max_reservation_atomic=INK_V0F_MAX_ENTRY_ATOMIC + 1)
     with pytest.raises(IssuancePolicyError, match="one taker"):
         replace(_issuer_policy(taker), allowed_taker_addresses=(taker, "0x00000000000000000000000000000000000000bb"))
+
+
+def test_dust_risk_object_cannot_be_reconstructed_with_wider_limits() -> None:
+    with pytest.raises(IssuancePolicyError, match="frozen"):
+        InkV0FDustRiskPolicyV0(max_entry_atomic=INK_V0F_MAX_ENTRY_ATOMIC + 1)
+    with pytest.raises(IssuancePolicyError, match="frozen"):
+        InkV0FDustRiskPolicyV0(max_open_positions_global=2)
+
+
+def test_dust_risk_serialization_is_canonical_and_digest_bound() -> None:
+    policy = INK_V0F_DUST_RISK_POLICY
+    assert policy.serialized
+    assert len(policy.policy_digest) == 64
+    assert b"private" not in policy.serialized
+    assert b"taker" not in policy.serialized

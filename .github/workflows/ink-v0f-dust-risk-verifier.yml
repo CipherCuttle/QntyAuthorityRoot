@@ -13,8 +13,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout authority root
+        uses: actions/checkout@v4
         with:
+          path: QntyAuthorityRoot
+          fetch-depth: 0
+
+      - name: Checkout QntySpot compatibility history
+        uses: actions/checkout@v4
+        with:
+          repository: CipherCuttle/QntySpot
+          path: QntySpot
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
@@ -22,13 +31,17 @@ jobs:
           python-version: '3.11'
 
       - name: Install
+        working-directory: QntyAuthorityRoot
         run: python -m pip install -e '.[dev]'
 
       - name: Compile
+        working-directory: QntyAuthorityRoot
         run: python -m compileall -q src tests
 
       - name: Whitespace
+        working-directory: QntyAuthorityRoot
         run: git diff --check origin/main...HEAD
 
       - name: Full offline suite
+        working-directory: QntyAuthorityRoot
         run: python -m pytest -q

@@ -37,9 +37,6 @@ authority by itself.
 
 It binds:
 
-- QntySpot canonical merge `bd518c670fd982595461a342f8fcae8fb6920329`;
-- implementation digest
-  `0951b951d9ba2beaba352a4d8c25f9b983f04cba3ec0c18797fa341e23fd2170`;
 - Ink chain `evm:57073`;
 - InkySwap V2 venue `inkyswap-v2-ink-mainnet`;
 - exact KRAKMASK/WETH pool and token identities;
@@ -50,6 +47,11 @@ It binds:
 - zero profit recycling and 100% banking during the first dust phase.
 
 An Ink issuance policy must bind exactly one taker address. This repository
-does not choose that address and this change issues no grant. The QntySpot V0F
-runtime must independently consume/enforce the same risk-policy digest before
+does not choose that address and this change issues no grant. The ordinary
+authority receipt separately binds the exact QntySpot repository commit and
+implementation digest; those identities are intentionally not duplicated in
+the risk object, avoiding a circular cross-repository digest dependency.
+
+The QntySpot V0F runtime must independently consume canonical risk-policy bytes
+under an externally pinned expected digest and enforce the same limits before
 any live-capital transition.
