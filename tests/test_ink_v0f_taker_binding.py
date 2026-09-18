@@ -66,9 +66,9 @@ def request() -> AuthorityIssuanceRequestV0:
 def test_exact_user_taker_and_qntyspot_identity_are_frozen() -> None:
     prep = INK_V0F_GRANT_PREPARATION
     assert INK_V0F_TAKER_ADDRESS == "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
-    assert INK_V0F_QNTYSPOT_COMMIT == "428f373e61f76966cbbf1ebe1d565f50faa27e5c"
+    assert INK_V0F_QNTYSPOT_COMMIT == "7b10a1a74607a9d2bf35438b89f02755b689d4ec"
     assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
-        "9feaf53cddb6d6fa5dbdd7f9d25d8dbe57d00be008813e444cef7208d180f6b8"
+        "0df376585a874e773d65b5dda0010a3d2eca28c541da474c6ca1cc60b3e929ec"
     )
     assert prep.maximum_issuable_level is AuthorityLevel.HUMAN_SIGNED_EXECUTION
     assert prep.max_reservation_atomic == 1_000_000_000_000_000

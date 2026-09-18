@@ -70,11 +70,11 @@ Canonical taker:
 
 QntySpot canonical merge:
 
-`428f373e61f76966cbbf1ebe1d565f50faa27e5c`
+`7b10a1a74607a9d2bf35438b89f02755b689d4ec`
 
 QntySpot implementation digest:
 
-`9feaf53cddb6d6fa5dbdd7f9d25d8dbe57d00be008813e444cef7208d180f6b8`
+`0df376585a874e773d65b5dda0010a3d2eca28c541da474c6ca1cc60b3e929ec`
 
 Preparation artifact:
 
@@ -82,7 +82,7 @@ Preparation artifact:
 
 Preparation digest:
 
-`8ddfcf13fcbdf2f0111ac24a52cd554a2f67cf4b7db3ad760992f3729ca6c726`
+`de565373e0e7630f72cc4e86e6ce8104aff618b76720b6c2c0f72ea8a16867a8`
 
 For Ink V0F, the issuer now rejects a different taker, QntySpot commit,
 implementation digest, venue, network, authority level, or capital envelope
@@ -91,3 +91,29 @@ exceed 900 seconds.
 
 No signer material or signed production receipt is included in this
 preparation.
+
+
+## Ink V0F short-lived grant issuance
+
+`qnty_authority_root.ink_v0f_grant` provides the one-shot issuance path for
+the already frozen first-grant tuple.
+
+The caller must supply:
+
+- a durable issuance database path;
+- an injected Ed25519 signer implementation;
+- authority epoch and minimum authority epoch;
+- trust-config version;
+- explicit issuance epoch seconds;
+- grant duration, at most 900 seconds.
+
+The helper reads no clock and no environment. It derives the exact issuer
+policy, exact request scope, and deterministic request id from explicit inputs,
+then delegates to the existing append-only `AuthorityIssuer`.
+
+The returned bundle contains only the signed receipt bytes plus public trust
+material required by QntySpot verification. Production signing material is
+neither stored nor discovered by this repository.
+
+The zero-money qualification is documented in
+`docs/INK_V0F_ZERO_MONEY_GRANT_QUALIFICATION_V0.md`.

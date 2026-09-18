@@ -15,6 +15,7 @@ from .contract import (
     verify_receipt_signature,
 )
 from .errors import AuthorityRootError, DatabaseError, IssuanceConflictError, IssuancePolicyError
+from .risk import INK_V0F_NETWORK_ID
 from .policy import (
     AuthorityIssuancePolicyV0,
     AuthorityIssuanceRequestV0,
@@ -128,6 +129,34 @@ class AuthorityIssuer:
                 )
                 self._commit(connection)
                 return committed
+
+            if request.authority_policy.permitted_network_id == INK_V0F_NETWORK_ID:
+                rows = connection.execute(
+                    "SELECT request_id, request_digest, request_bytes, authority_epoch, "
+                    "serial, receipt_id, receipt_bytes FROM issuances ORDER BY serial"
+                ).fetchall()
+                new_policy = request.authority_policy
+                for prior_row in rows:
+                    prior_bytes = bytes(prior_row["receipt_bytes"])
+                    self._validate_committed_receipt(
+                        prior_bytes,
+                        row=prior_row,
+                        request_id=str(prior_row["request_id"]),
+                    )
+                    prior = AuthorityGrantReceiptV0.from_bytes(prior_bytes)
+                    prior_policy = prior.authority_policy
+                    if prior_policy.permitted_network_id != INK_V0F_NETWORK_ID:
+                        continue
+                    if max(
+                        prior_policy.not_before_epoch_s,
+                        new_policy.not_before_epoch_s,
+                    ) < min(
+                        prior_policy.not_after_epoch_s,
+                        new_policy.not_after_epoch_s,
+                    ):
+                        raise IssuanceConflictError(
+                            "an overlapping Ink V0F authority grant already exists"
+                        )
 
             serial_row = connection.execute("SELECT COALESCE(MAX(serial), 0) + 1 FROM issuances").fetchone()
             serial = int(serial_row[0])
