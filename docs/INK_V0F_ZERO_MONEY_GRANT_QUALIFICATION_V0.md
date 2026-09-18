@@ -20,10 +20,17 @@ resulting public trust configuration in the canonical QntySpot verifier, binds
 the receipt to the exact QntySpot commit/implementation/taker/network/venue,
 and verifies the signature.
 
-The qualification additionally proves the external Level-3 receipt cannot
-escape QntySpot's binding `RECONCILE_ONLY` source phase ceiling. Effective
-authority remains Level 1: exact-byte submission, construction, approval,
-signature, and live-capital authority all remain unavailable.
+The qualification now targets QntySpot's merged
+`HUMAN_SIGNED_EXECUTION` source ceiling. For the exact bound
+commit/digest/network/taker/venue tuple, the verified receipt reaches effective
+Level 3 and makes the already-reviewed envelope, exact approval, and exact
+externally signed-byte submission capabilities eligible. `PRODUCE_SIGNATURE`
+remains unavailable because it is Level 4 only.
+
+This qualification does not broadcast a transaction or move capital. The exact
+`ink-v0f` adapter-version fence is enforced by QntySpot's phase-scope gate;
+the V0 authority receipt schema itself binds repository commit, implementation
+digest, network, taker, and venue.
 
 No production receipt or production signer material is created by this phase.
 
@@ -44,12 +51,14 @@ commit, so concurrent issuers cannot race around the single-active-grant rule.
 
 ## Canonical QntySpot identity
 
-This qualification is pinned to the post-repair canonical QntySpot merge:
+This qualification is pinned to the canonical QntySpot Level-3 merge:
 
-`7b10a1a74607a9d2bf35438b89f02755b689d4ec`
+`79d66648b80173f71c2e5a3b307984d525edf479`
 
 with implementation digest:
 
-`0df376585a874e773d65b5dda0010a3d2eca28c541da474c6ca1cc60b3e929ec`
+`ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea`
 
-The previous first-grant tuple is intentionally stale and inadmissible.
+The original first-grant preparation artifact remains immutable historical
+evidence, but its old QntySpot commit/digest tuple is intentionally stale and
+inadmissible for new Ink V0F issuance.

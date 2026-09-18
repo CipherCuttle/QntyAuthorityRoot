@@ -16,6 +16,9 @@ from qnty_authority_root import (
 from qnty_authority_root.ink_v0f_binding import (
     INK_V0F_GRANT_PREPARATION,
     INK_V0F_GRANT_PREPARATION_DIGEST,
+    INK_V0F_HISTORICAL_GRANT_PREPARATION_DIGEST,
+    INK_V0F_HISTORICAL_QNTYSPOT_COMMIT,
+    INK_V0F_HISTORICAL_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_TAKER_ADDRESS,
@@ -23,8 +26,10 @@ from qnty_authority_root.ink_v0f_binding import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACT = ROOT / "artifacts" / "INK_V0F_GRANT_PREPARATION_V0.json"
+ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V0.json"
 SIDECAR = ARTIFACT.with_suffix(".sha256")
+HISTORICAL_ARTIFACT = ROOT / "artifacts" / "INK_V0F_GRANT_PREPARATION_V0.json"
+HISTORICAL_SIDECAR = HISTORICAL_ARTIFACT.with_suffix(".sha256")
 
 
 def issuer_policy() -> AuthorityIssuancePolicyV0:
@@ -66,9 +71,9 @@ def request() -> AuthorityIssuanceRequestV0:
 def test_exact_user_taker_and_qntyspot_identity_are_frozen() -> None:
     prep = INK_V0F_GRANT_PREPARATION
     assert INK_V0F_TAKER_ADDRESS == "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
-    assert INK_V0F_QNTYSPOT_COMMIT == "7b10a1a74607a9d2bf35438b89f02755b689d4ec"
+    assert INK_V0F_QNTYSPOT_COMMIT == "79d66648b80173f71c2e5a3b307984d525edf479"
     assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
-        "0df376585a874e773d65b5dda0010a3d2eca28c541da474c6ca1cc60b3e929ec"
+        "ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea"
     )
     assert prep.maximum_issuable_level is AuthorityLevel.HUMAN_SIGNED_EXECUTION
     assert prep.max_reservation_atomic == 1_000_000_000_000_000
@@ -83,6 +88,32 @@ def test_preparation_artifact_is_exact_and_digest_bound() -> None:
     assert SIDECAR.read_text(encoding="ascii") == (
         f"{INK_V0F_GRANT_PREPARATION_DIGEST}  {ARTIFACT.name}\n"
     )
+
+
+def test_historical_preparation_artifact_remains_immutable() -> None:
+    raw = HISTORICAL_ARTIFACT.read_bytes()
+    assert INK_V0F_HISTORICAL_QNTYSPOT_COMMIT.encode() in raw
+    assert INK_V0F_HISTORICAL_QNTYSPOT_IMPLEMENTATION_DIGEST.encode() in raw
+    from qnty_authority_root import sha256_hex
+
+    assert sha256_hex(raw) == INK_V0F_HISTORICAL_GRANT_PREPARATION_DIGEST
+    assert HISTORICAL_SIDECAR.read_text(encoding="ascii") == (
+        f"{INK_V0F_HISTORICAL_GRANT_PREPARATION_DIGEST}  {HISTORICAL_ARTIFACT.name}\n"
+    )
+
+
+def test_historical_qntyspot_identity_is_no_longer_issuable() -> None:
+    req = request()
+    stale = replace(
+        req.authority_policy,
+        permitted_repository_commit=INK_V0F_HISTORICAL_QNTYSPOT_COMMIT,
+        permitted_implementation_digest=INK_V0F_HISTORICAL_QNTYSPOT_IMPLEMENTATION_DIGEST,
+    )
+    with pytest.raises(IssuancePolicyError, match="reviewed grant preparation"):
+        assert_issuance_request_admissible(
+            issuer_policy(),
+            replace(req, authority_policy=stale),
+        )
 
 
 def test_exact_prepared_request_is_admissible() -> None:
