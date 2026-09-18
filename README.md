@@ -58,36 +58,43 @@ under an externally pinned expected digest and enforce the same limits before
 any live-capital transition.
 
 
-## Ink V0F first-grant preparation
+## Ink V0F Level-3 grant preparation
 
-The first Ink dust-live grant is now prepared against one exact public taker
-and one exact reviewed QntySpot runtime identity. This preparation is not a
+The current Ink dust-live grant preparation is bound to one exact public taker
+and the merged QntySpot Level-3 runtime identity. This preparation is not a
 signed grant and gives no authority by itself.
+
+The original `artifacts/INK_V0F_GRANT_PREPARATION_V0.json` remains immutable
+historical evidence. It is not the current issuable tuple.
 
 Canonical taker:
 
 `0x3e604be3293d930069d0805e85379e0ca5fa01cb`
 
-QntySpot canonical merge:
+QntySpot canonical Level-3 merge:
 
-`7b10a1a74607a9d2bf35438b89f02755b689d4ec`
+`79d66648b80173f71c2e5a3b307984d525edf479`
 
 QntySpot implementation digest:
 
-`0df376585a874e773d65b5dda0010a3d2eca28c541da474c6ca1cc60b3e929ec`
+`ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea`
 
-Preparation artifact:
+Current preparation artifact:
 
-`artifacts/INK_V0F_GRANT_PREPARATION_V0.json`
+`artifacts/INK_V0F_LEVEL3_GRANT_PREPARATION_V0.json`
 
-Preparation digest:
+Current preparation digest:
 
-`de565373e0e7630f72cc4e86e6ce8104aff618b76720b6c2c0f72ea8a16867a8`
+`b0655a0a5e83dd55264a3fc10a5c0be75ae31782b2ab84ee2ebbe54d09f13233`
 
-For Ink V0F, the issuer now rejects a different taker, QntySpot commit,
+For Ink V0F, the issuer rejects a different taker, QntySpot commit,
 implementation digest, venue, network, authority level, or capital envelope
-before a receipt can be signed. The grant window remains dynamic but cannot
-exceed 900 seconds.
+before a receipt can be signed. The former QntySpot tuple is explicitly stale.
+The grant window remains dynamic but cannot exceed 900 seconds.
+
+The authority receipt schema does not contain an adapter-version field.
+QntySpot independently restricts Level-2/3 runtime authority to the reviewed
+`ink-v0f` adapter version in its source-side phase-scope gate.
 
 No signer material or signed production receipt is included in this
 preparation.
