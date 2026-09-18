@@ -32,7 +32,9 @@ jobs:
 
       - name: Install
         working-directory: QntyAuthorityRoot
-        run: python -m pip install -e '.[dev]'
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pip install -e ../QntySpot
 
       - name: Compile
         working-directory: QntyAuthorityRoot
