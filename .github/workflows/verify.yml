@@ -74,6 +74,9 @@ jobs:
           expected = "ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea"
           assert artifact["implementation_digest"] == expected, artifact["implementation_digest"]
           PY
-      - name: Run zero-money cross-repo qualification
+      - name: Run zero-money cross-repo qualifications
         working-directory: authority-root
-        run: python -m pytest -q qualifications/test_ink_v0f_zero_money_grant.py
+        run: |
+          python -m pytest -q \
+            qualifications/test_ink_v0f_zero_money_grant.py \
+            qualifications/test_ink_v0f_level3_runtime_rehearsal.py
