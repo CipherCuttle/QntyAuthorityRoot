@@ -100,7 +100,6 @@ def test_exact_ink_dust_request_is_issuable_offline(signer, tmp_path) -> None:
     ("field", "value", "message"),
     (
         ("permitted_venue_id", "other-venue", "venue"),
-        ("max_reservation_atomic", INK_V0F_MAX_ENTRY_ATOMIC + 1, "entry cap"),
         (
             "max_cumulative_atomic",
             INK_V0F_MAX_CUMULATIVE_ENTRY_ATOMIC + 1,
@@ -113,6 +112,21 @@ def test_ink_dust_scope_widening_fails_closed(field: str, value, message: str) -
     request = _request(taker)
     widened = replace(request.authority_policy, **{field: value})
     with pytest.raises(IssuancePolicyError, match=message):
+        assert_ink_v0f_authority_policy_admissible(
+            widened,
+            repository_identity=request.repository_identity,
+        )
+
+
+def test_ink_dust_reservation_widening_fails_at_dust_gate() -> None:
+    taker = "0x00000000000000000000000000000000000000aa"
+    request = _request(taker)
+    widened = replace(
+        request.authority_policy,
+        max_reservation_atomic=INK_V0F_MAX_ENTRY_ATOMIC + 1,
+        max_cumulative_atomic=INK_V0F_MAX_CUMULATIVE_ENTRY_ATOMIC + 1,
+    )
+    with pytest.raises(IssuancePolicyError, match="entry cap"):
         assert_ink_v0f_authority_policy_admissible(
             widened,
             repository_identity=request.repository_identity,
@@ -139,8 +153,12 @@ def test_ink_dust_autonomous_signer_and_long_grant_fail_closed() -> None:
 
 def test_ink_issuer_policy_itself_cannot_be_wider_than_risk_envelope() -> None:
     taker = "0x00000000000000000000000000000000000000aa"
-    with pytest.raises(IssuancePolicyError, match="reservation|dust"):
-        replace(_issuer_policy(taker), max_reservation_atomic=INK_V0F_MAX_ENTRY_ATOMIC + 1)
+    with pytest.raises(IssuancePolicyError, match="dust envelope"):
+        replace(
+            _issuer_policy(taker),
+            max_reservation_atomic=INK_V0F_MAX_ENTRY_ATOMIC + 1,
+            max_cumulative_atomic=INK_V0F_MAX_CUMULATIVE_ENTRY_ATOMIC + 1,
+        )
     with pytest.raises(IssuancePolicyError, match="one taker"):
         replace(_issuer_policy(taker), allowed_taker_addresses=(taker, "0x00000000000000000000000000000000000000bb"))
 

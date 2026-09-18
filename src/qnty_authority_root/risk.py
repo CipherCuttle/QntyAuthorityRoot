@@ -1,7 +1,7 @@
 """Frozen V0F Ink dust-live risk envelope.
 
-This module is public governance material only. It contains no signer, wallet,
-secret, RPC, transaction, or capital-execution path.
+This module is public governance material only. It contains no signing material,
+secret discovery, RPC, or capital-execution path.
 
 The policy is deliberately stricter than the generic authority-receipt
 contract. A V0F Ink issuance may be narrower, but never wider. Exact QntySpot
