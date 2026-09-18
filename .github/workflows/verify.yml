@@ -11,12 +11,27 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out AuthorityRoot
+        uses: actions/checkout@v4
+        with:
+          path: QntyAuthorityRoot
+      - name: Check out QntySpot history required by legacy governance tests
+        uses: actions/checkout@v4
+        with:
+          repository: CipherCuttle/QntySpot
+          ref: 79d66648b80173f71c2e5a3b307984d525edf479
+          fetch-depth: 0
+          path: QntySpot
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install --disable-pip-version-check -e ".[dev]"
-      - run: python -m pytest -q tests
+      - name: Install exact checkouts
+        run: |
+          python -m pip install --disable-pip-version-check -e "./QntyAuthorityRoot[dev]"
+          python -m pip install --disable-pip-version-check -e "./QntySpot"
+      - name: Run AuthorityRoot test suite
+        working-directory: QntyAuthorityRoot
+        run: python -m pytest -q tests
 
   ink-v0f-cross-repo-qualification:
     runs-on: ubuntu-latest
