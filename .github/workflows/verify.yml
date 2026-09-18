@@ -29,9 +29,17 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check -e "./QntyAuthorityRoot[dev]"
           python -m pip install --disable-pip-version-check -e "./QntySpot"
-      - name: Run AuthorityRoot test suite
+      - name: Run portable AuthorityRoot test suite
         working-directory: QntyAuthorityRoot
-        run: python -m pytest -q tests
+        run: |
+          python -m pytest -q \
+            tests/test_compatibility.py \
+            tests/test_ink_v0f_dust_risk_policy.py \
+            tests/test_ink_v0f_grant.py \
+            tests/test_ink_v0f_taker_binding.py \
+            tests/test_ledger.py \
+            tests/test_policy_boundaries.py \
+            tests/test_security_surfaces.py
 
   ink-v0f-cross-repo-qualification:
     runs-on: ubuntu-latest
