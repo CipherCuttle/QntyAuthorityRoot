@@ -91,3 +91,29 @@ exceed 900 seconds.
 
 No signer material or signed production receipt is included in this
 preparation.
+
+
+## Ink V0F short-lived grant issuance
+
+`qnty_authority_root.ink_v0f_grant` provides the one-shot issuance path for
+the already frozen first-grant tuple.
+
+The caller must supply:
+
+- a durable issuance database path;
+- an injected Ed25519 signer implementation;
+- authority epoch and minimum authority epoch;
+- trust-config version;
+- explicit issuance epoch seconds;
+- grant duration, at most 900 seconds.
+
+The helper reads no clock and no environment. It derives the exact issuer
+policy, exact request scope, and deterministic request id from explicit inputs,
+then delegates to the existing append-only `AuthorityIssuer`.
+
+The returned bundle contains only the signed receipt bytes plus public trust
+material required by QntySpot verification. Production signing material is
+neither stored nor discovered by this repository.
+
+The zero-money qualification is documented in
+`docs/INK_V0F_ZERO_MONEY_GRANT_QUALIFICATION_V0.md`.
