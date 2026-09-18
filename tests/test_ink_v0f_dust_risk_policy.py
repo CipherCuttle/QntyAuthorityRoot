@@ -15,6 +15,11 @@ from qnty_authority_root import (
     AuthorityPolicyRefV0,
     IssuancePolicyError,
 )
+from qnty_authority_root.ink_v0f_binding import (
+    INK_V0F_QNTYSPOT_COMMIT,
+    INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
+    INK_V0F_TAKER_ADDRESS,
+)
 from qnty_authority_root.risk import (
     INK_V0F_BANKED_PROFIT_RATIO,
     INK_V0F_DUST_RISK_POLICY,
@@ -29,7 +34,7 @@ from qnty_authority_root.risk import (
 )
 
 
-def _issuer_policy(taker: str) -> AuthorityIssuancePolicyV0:
+def _issuer_policy(taker: str = INK_V0F_TAKER_ADDRESS) -> AuthorityIssuancePolicyV0:
     return AuthorityIssuancePolicyV0(
         root_id="qnty-authority-root-v0",
         repository_identity="CipherCuttle/QntySpot",
@@ -43,14 +48,14 @@ def _issuer_policy(taker: str) -> AuthorityIssuancePolicyV0:
     )
 
 
-def _request(taker: str) -> AuthorityIssuanceRequestV0:
+def _request(taker: str = INK_V0F_TAKER_ADDRESS) -> AuthorityIssuanceRequestV0:
     return AuthorityIssuanceRequestV0(
         repository_identity="CipherCuttle/QntySpot",
         authority_policy=AuthorityPolicyRefV0(
             authority_root_id="qnty-authority-root-v0",
             granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
-            permitted_repository_commit="b" * 40,
-            permitted_implementation_digest="c" * 64,
+            permitted_repository_commit=INK_V0F_QNTYSPOT_COMMIT,
+            permitted_implementation_digest=INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
             permitted_network_id=INK_V0F_NETWORK_ID,
             permitted_taker_address=taker,
             permitted_venue_id=INK_V0F_VENUE_ID,
@@ -81,16 +86,15 @@ def test_frozen_ink_dust_policy_is_single_position_non_compounding() -> None:
 
 
 def test_exact_ink_dust_request_is_issuable_offline(signer, tmp_path) -> None:
-    taker = "0x00000000000000000000000000000000000000aa"
     issuer = AuthorityIssuer(
         db_path=tmp_path / "ink-v0f.sqlite3",
-        issuer_policy=_issuer_policy(taker),
+        issuer_policy=_issuer_policy(),
         authority_epoch=9,
         minimum_authority_epoch=9,
         trust_config_version=2,
         signer=signer,
     )
-    raw = issuer.issue(request_id="ink-v0f-dust", request=_request(taker))
+    raw = issuer.issue(request_id="ink-v0f-dust", request=_request())
     receipt = AuthorityGrantReceiptV0.from_bytes(raw)
     assert receipt.authority_policy.permitted_network_id == INK_V0F_NETWORK_ID
     assert receipt.authority_policy.permitted_venue_id == INK_V0F_VENUE_ID
@@ -154,15 +158,21 @@ def test_ink_dust_autonomous_signer_and_long_grant_fail_closed() -> None:
 
 
 def test_ink_issuer_policy_itself_cannot_be_wider_than_risk_envelope() -> None:
-    taker = "0x00000000000000000000000000000000000000aa"
+    taker = INK_V0F_TAKER_ADDRESS
     with pytest.raises(IssuancePolicyError, match="dust envelope"):
         replace(
-            _issuer_policy(taker),
+            _issuer_policy(),
             max_reservation_atomic=INK_V0F_MAX_ENTRY_ATOMIC + 1,
             max_cumulative_atomic=INK_V0F_MAX_CUMULATIVE_ENTRY_ATOMIC + 1,
         )
-    with pytest.raises(IssuancePolicyError, match="one taker"):
-        replace(_issuer_policy(taker), allowed_taker_addresses=(taker, "0x00000000000000000000000000000000000000bb"))
+    with pytest.raises(IssuancePolicyError, match="reviewed taker"):
+        replace(
+            _issuer_policy(),
+            allowed_taker_addresses=(
+                taker,
+                "0x00000000000000000000000000000000000000bb",
+            ),
+        )
 
 
 def test_dust_risk_object_cannot_be_reconstructed_with_wider_limits() -> None:
