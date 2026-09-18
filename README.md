@@ -56,3 +56,38 @@ the risk object, avoiding a circular cross-repository digest dependency.
 The QntySpot V0F runtime must independently consume canonical risk-policy bytes
 under an externally pinned expected digest and enforce the same limits before
 any live-capital transition.
+
+
+## Ink V0F first-grant preparation
+
+The first Ink dust-live grant is now prepared against one exact public taker
+and one exact reviewed QntySpot runtime identity. This preparation is not a
+signed grant and gives no authority by itself.
+
+Canonical taker:
+
+`0x3e604be3293d930069d0805e85379e0ca5fa01cb`
+
+QntySpot canonical merge:
+
+`428f373e61f76966cbbf1ebe1d565f50faa27e5c`
+
+QntySpot implementation digest:
+
+`9feaf53cddb6d6fa5dbdd7f9d25d8dbe57d00be008813e444cef7208d180f6b8`
+
+Preparation artifact:
+
+`artifacts/INK_V0F_GRANT_PREPARATION_V0.json`
+
+Preparation digest:
+
+`8ddfcf13fcbdf2f0111ac24a52cd554a2f67cf4b7db3ad760992f3729ca6c726`
+
+For Ink V0F, the issuer now rejects a different taker, QntySpot commit,
+implementation digest, venue, network, authority level, or capital envelope
+before a receipt can be signed. The grant window remains dynamic but cannot
+exceed 900 seconds.
+
+No signer material or signed production receipt is included in this
+preparation.

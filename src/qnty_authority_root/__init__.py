@@ -12,6 +12,15 @@ from .contract import (
     TrustedAuthorityRootV0,
     verify_receipt_signature,
 )
+from .ink_v0f_binding import (
+    INK_V0F_GRANT_PREPARATION,
+    INK_V0F_GRANT_PREPARATION_DIGEST,
+    INK_V0F_QNTYSPOT_COMMIT,
+    INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
+    INK_V0F_TAKER_ADDRESS,
+    InkV0FGrantPreparationV0,
+    assert_ink_v0f_exact_authority_binding,
+)
 from .risk import (
     INK_V0F_DUST_RISK_POLICY,
     INK_V0F_DUST_RISK_POLICY_DIGEST,
@@ -50,6 +59,12 @@ __all__ = [
     "INK_V0F_NETWORK_ID",
     "INK_V0F_VENUE_ID",
     "INK_V0F_DUST_RISK_POLICY",
+    "INK_V0F_GRANT_PREPARATION",
+    "INK_V0F_GRANT_PREPARATION_DIGEST",
+    "INK_V0F_QNTYSPOT_COMMIT",
+    "INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST",
+    "INK_V0F_TAKER_ADDRESS",
+    "InkV0FGrantPreparationV0",
     "INK_V0F_DUST_RISK_POLICY_DIGEST",
     "InkV0FDustRiskPolicyV0",
     "ED25519_SIGNATURE_ALGORITHM",
@@ -69,6 +84,7 @@ __all__ = [
     "TrustedAuthorityRootV0",
     "assert_issuance_request_admissible",
     "assert_ink_v0f_authority_policy_admissible",
+    "assert_ink_v0f_exact_authority_binding",
     "snapshot_issuance_policy",
     "snapshot_issuance_request",
     "canonical_json_bytes",
