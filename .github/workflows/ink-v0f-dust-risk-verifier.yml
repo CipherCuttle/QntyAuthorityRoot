@@ -44,4 +44,6 @@ jobs:
 
       - name: Full offline suite
         working-directory: QntyAuthorityRoot
+        env:
+          PYTHONPATH: ../QntySpot
         run: python -m pytest -q
