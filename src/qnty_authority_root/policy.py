@@ -9,6 +9,10 @@ from typing import Any
 from .canon import digest_object
 from .contract import AuthorityLevel, AuthorityPolicyRefV0, MAX_UINT256
 from .errors import IssuancePolicyError
+from .ink_v0f_binding import (
+    INK_V0F_TAKER_ADDRESS,
+    assert_ink_v0f_exact_authority_binding,
+)
 from .risk import (
     INK_V0F_DUST_RISK_POLICY,
     INK_V0F_NETWORK_ID,
@@ -110,8 +114,10 @@ class AuthorityIssuancePolicyV0:
                 raise IssuancePolicyError(
                     "Ink V0F issuer policy must allow exactly inkyswap-v2-ink-mainnet"
                 )
-            if len(self.allowed_taker_addresses) != 1:
-                raise IssuancePolicyError("Ink V0F issuer policy must bind exactly one taker")
+            if self.allowed_taker_addresses != (INK_V0F_TAKER_ADDRESS,):
+                raise IssuancePolicyError(
+                    "Ink V0F issuer policy must bind exactly the reviewed taker"
+                )
             if self.max_reservation_atomic > INK_V0F_DUST_RISK_POLICY.max_entry_atomic:
                 raise IssuancePolicyError(
                     "Ink V0F issuer reservation ceiling exceeds the dust envelope"
@@ -216,6 +222,7 @@ def assert_issuance_request_admissible(
             authority,
             repository_identity=request.repository_identity,
         )
+        assert_ink_v0f_exact_authority_binding(authority)
     duration = authority.not_after_epoch_s - authority.not_before_epoch_s
     if duration <= 0:
         raise IssuancePolicyError("grant duration must be positive")
