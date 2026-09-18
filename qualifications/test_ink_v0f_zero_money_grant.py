@@ -27,6 +27,12 @@ from qntyspot.execution_contract import (
 )
 
 NOW = 1_800_000_000
+EXPECTED_TEST_ANCHOR = bytes.fromhex(
+    "ef2dac57b28908e4a9ed3dd817c0c8930c2b55c7686a4ae5ae0720bd3757e721"
+)
+EXPECTED_TEST_TRUST_CONFIG_DIGEST = (
+    "fad763b0085372ba77f3a7649fd2a1bbcfede552ed43129fa5952da3bd5e8e7c"
+)
 
 
 class QualificationSigner:
@@ -53,10 +59,12 @@ def test_short_lived_level3_receipt_verifies_but_cannot_escape_source_ceiling(tm
         duration_s=900,
     )
 
+    assert bundle.public_anchor_bytes == EXPECTED_TEST_ANCHOR
+    assert bundle.trust_config_digest == EXPECTED_TEST_TRUST_CONFIG_DIGEST
     root = load_trusted_authority_root(
         bundle.trust_config_bytes,
-        expected_config_digest=bundle.trust_config_digest,
-        anchor_bytes=bundle.public_anchor_bytes,
+        expected_config_digest=EXPECTED_TEST_TRUST_CONFIG_DIGEST,
+        anchor_bytes=EXPECTED_TEST_ANCHOR,
     )
     receipt = AuthorityGrantReceiptV0.from_bytes(bundle.receipt_bytes)
     assert receipt.authority_policy.granted_level is AuthorityLevel.HUMAN_SIGNED_EXECUTION

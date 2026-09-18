@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from qnty_authority_root import AuthorityLevel, IssuancePolicyError
+from qnty_authority_root import (
+    AuthorityLevel,
+    IssuanceConflictError,
+    IssuancePolicyError,
+)
 from qnty_authority_root.ink_v0f_binding import (
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
@@ -92,3 +97,57 @@ def test_one_shot_issue_is_signed_durable_and_idempotent(tmp_path) -> None:
     assert first.public_anchor_bytes == signer.public_key_bytes
     assert len(first.trust_config_digest) == 64
     assert first.request_id == "ink-v0f-1800000000-900"
+
+
+def test_overlapping_ink_grants_fail_closed_atomically(tmp_path) -> None:
+    signer = EphemeralTestSigner()
+    base = dict(
+        db_path=tmp_path / "overlap.sqlite3",
+        signer=signer,
+        authority_epoch=10,
+        minimum_authority_epoch=10,
+        trust_config_version=3,
+        duration_s=900,
+    )
+    first = issue_ink_v0f_grant(
+        **base,
+        issued_at_epoch_s=1_800_000_000,
+    )
+    assert first.receipt.authority_policy.not_after_epoch_s == 1_800_000_900
+    with pytest.raises(IssuanceConflictError, match="overlapping Ink V0F"):
+        issue_ink_v0f_grant(
+            **base,
+            issued_at_epoch_s=1_800_000_100,
+        )
+
+    second = issue_ink_v0f_grant(
+        **base,
+        issued_at_epoch_s=1_800_000_900,
+    )
+    assert second.receipt.serial == 2
+
+
+def test_concurrent_overlapping_ink_grants_allow_exactly_one_commit(tmp_path) -> None:
+    signer = EphemeralTestSigner()
+    db_path = tmp_path / "concurrent-overlap.sqlite3"
+
+    def issue(start: int):
+        try:
+            bundle = issue_ink_v0f_grant(
+                db_path=db_path,
+                signer=signer,
+                authority_epoch=10,
+                minimum_authority_epoch=10,
+                trust_config_version=3,
+                issued_at_epoch_s=start,
+                duration_s=900,
+            )
+            return ("ok", bundle.receipt.serial)
+        except IssuanceConflictError as exc:
+            return ("conflict", str(exc))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(issue, (1_800_000_000, 1_800_000_100)))
+
+    assert sorted(result[0] for result in outcomes) == ["conflict", "ok"]
+    assert [result[1] for result in outcomes if result[0] == "ok"] == [1]

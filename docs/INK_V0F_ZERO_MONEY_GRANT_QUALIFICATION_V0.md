@@ -26,3 +26,17 @@ below `HUMAN_SIGNED_EXECUTION`, and construction, approval, signature, and
 live-capital authority remain unavailable.
 
 No production receipt or production signer material is created by this phase.
+
+
+## Trust and overlap properties
+
+The issuance bundle's public anchor and trust-config digest are issuer outputs,
+not self-authenticating trust. A production QntySpot consumer must compare them
+against independently frozen public trust pins. The zero-money qualification
+models that requirement with separately pinned deterministic test values rather
+than accepting the bundle's own values as its trust decision.
+
+The durable issuer also refuses a second Ink V0F receipt whose validity interval
+overlaps an already committed Ink V0F receipt. The check runs inside the same
+SQLite `BEGIN IMMEDIATE` critical section as serial allocation and receipt
+commit, so concurrent issuers cannot race around the single-active-grant rule.
