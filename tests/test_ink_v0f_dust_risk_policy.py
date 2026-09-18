@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from fractions import Fraction
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +18,7 @@ from qnty_authority_root import (
 from qnty_authority_root.risk import (
     INK_V0F_BANKED_PROFIT_RATIO,
     INK_V0F_DUST_RISK_POLICY,
+    INK_V0F_DUST_RISK_POLICY_DIGEST,
     INK_V0F_MAX_CUMULATIVE_ENTRY_ATOMIC,
     INK_V0F_MAX_ENTRY_ATOMIC,
     INK_V0F_NETWORK_ID,
@@ -176,3 +178,14 @@ def test_dust_risk_serialization_is_canonical_and_digest_bound() -> None:
     assert len(policy.policy_digest) == 64
     assert b"private" not in policy.serialized
     assert b"taker" not in policy.serialized
+
+
+def test_frozen_dust_risk_artifact_matches_runtime_object_and_sidecar() -> None:
+    root = Path(__file__).resolve().parents[1]
+    artifact = root / "artifacts" / "INK_V0F_DUST_RISK_POLICY_V0.json"
+    sidecar = artifact.with_suffix(".sha256")
+    assert artifact.read_bytes() == INK_V0F_DUST_RISK_POLICY.serialized
+    assert INK_V0F_DUST_RISK_POLICY.policy_digest == INK_V0F_DUST_RISK_POLICY_DIGEST
+    assert sidecar.read_text(encoding="ascii") == (
+        f"{INK_V0F_DUST_RISK_POLICY_DIGEST}  {artifact.name}\n"
+    )

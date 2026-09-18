@@ -188,6 +188,11 @@ class InkV0FDustRiskPolicyV0:
 
 
 INK_V0F_DUST_RISK_POLICY = InkV0FDustRiskPolicyV0()
+INK_V0F_DUST_RISK_POLICY_DIGEST = (
+    "c7058aec58f3fbcb4f2b390a6eac35bdb9d8cab2484a2ff22731f2dc586e8ee3"
+)
+if INK_V0F_DUST_RISK_POLICY.policy_digest != INK_V0F_DUST_RISK_POLICY_DIGEST:
+    raise RuntimeError("Ink V0F dust-risk policy digest invariant failed")
 
 
 def assert_ink_v0f_authority_policy_admissible(

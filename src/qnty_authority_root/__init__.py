@@ -14,6 +14,7 @@ from .contract import (
 )
 from .risk import (
     INK_V0F_DUST_RISK_POLICY,
+    INK_V0F_DUST_RISK_POLICY_DIGEST,
     INK_V0F_NETWORK_ID,
     INK_V0F_RISK_SCHEMA,
     INK_V0F_VENUE_ID,
@@ -49,6 +50,7 @@ __all__ = [
     "INK_V0F_NETWORK_ID",
     "INK_V0F_VENUE_ID",
     "INK_V0F_DUST_RISK_POLICY",
+    "INK_V0F_DUST_RISK_POLICY_DIGEST",
     "InkV0FDustRiskPolicyV0",
     "ED25519_SIGNATURE_ALGORITHM",
     "GRANT_SCHEMA",

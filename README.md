@@ -32,7 +32,8 @@ The receipt contract is frozen against QntySpot commit
 ## Ink V0F dust-risk profile
 
 `qnty_authority_root.risk.INK_V0F_DUST_RISK_POLICY` is a public,
-content-addressed governance object. It is not a receipt and grants no
+content-addressed governance object. Its canonical artifact digest is
+`c7058aec58f3fbcb4f2b390a6eac35bdb9d8cab2484a2ff22731f2dc586e8ee3`. It is not a receipt and grants no
 authority by itself.
 
 It binds:
