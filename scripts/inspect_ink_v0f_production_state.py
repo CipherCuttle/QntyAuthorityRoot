@@ -10,7 +10,6 @@ from typing import Any
 
 from qnty_authority_root import (
     AuthorityGrantReceiptV0,
-    canonical_json_str,
     sha256_hex,
     strict_json_loads,
 )
