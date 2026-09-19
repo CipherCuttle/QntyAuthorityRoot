@@ -5,7 +5,16 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from qnty_authority_root import AuthorityGrantReceiptV0, AuthorityIssuer, IssuanceConflictError
+from qnty_authority_root import (
+    AuthorityGrantReceiptV0,
+    AuthorityIssuer,
+    DatabaseError,
+    IssuanceConflictError,
+)
+from qnty_authority_root.ink_v0f_grant import (
+    build_ink_v0f_request,
+    ink_v0f_issuer_policy,
+)
 
 
 def test_duplicate_request_id_returns_exact_committed_bytes(issuer, request_factory) -> None:
@@ -129,3 +138,66 @@ def test_issuance_history_is_append_only(tmp_path, issuer_policy, signer, reques
 
 
 NOW_PLUS_ONE = 1_700_000_101
+
+
+
+def test_historical_validator_is_opt_in_and_only_applies_to_prior_row_scan(
+    tmp_path,
+    issuer_policy,
+    signer,
+    request_factory,
+) -> None:
+    path = tmp_path / "historical-policy-transition.sqlite3"
+    old = AuthorityIssuer(
+        db_path=path,
+        issuer_policy=issuer_policy,
+        authority_epoch=8,
+        minimum_authority_epoch=7,
+        trust_config_version=1,
+        signer=signer,
+    )
+    old_request = request_factory()
+    old.issue(request_id="historical-old-policy", request=old_request)
+
+    new_request = build_ink_v0f_request(
+        issued_at_epoch_s=old_request.authority_policy.not_after_epoch_s + 1,
+        duration_s=900,
+    )
+    strict = AuthorityIssuer(
+        db_path=path,
+        issuer_policy=ink_v0f_issuer_policy(),
+        authority_epoch=8,
+        minimum_authority_epoch=7,
+        trust_config_version=1,
+        signer=signer,
+    )
+    with pytest.raises(DatabaseError, match="no longer admissible"):
+        strict.issue(request_id="current-after-rebind", request=new_request)
+
+    calls: list[str] = []
+
+    def allow_old(request_id, request, receipt) -> bool:
+        calls.append(request_id)
+        return request_id == "historical-old-policy" and receipt.serial == 1
+
+    transitioned = AuthorityIssuer(
+        db_path=path,
+        issuer_policy=ink_v0f_issuer_policy(),
+        authority_epoch=8,
+        minimum_authority_epoch=7,
+        trust_config_version=1,
+        signer=signer,
+        historical_request_validator=allow_old,
+    )
+    current = transitioned.issue(
+        request_id="current-after-rebind",
+        request=new_request,
+    )
+    parsed = AuthorityGrantReceiptV0.from_bytes(current)
+    assert parsed.serial == 2
+    assert calls == ["historical-old-policy"]
+
+    # The exception is prior-row-scan only. Direct retrieval of the obsolete
+    # request remains strict under the new policy and must fail closed.
+    with pytest.raises(DatabaseError, match="no longer admissible"):
+        transitioned.get_committed("historical-old-policy")
