@@ -63,6 +63,19 @@ def _production_root(tmp_path: Path, public: bytes, trust_bytes: bytes) -> Path:
     return root
 
 
+def _enable_historical_epoch5(module, monkeypatch) -> None:
+    monkeypatch.setattr(
+        module,
+        "CURRENT_QNTYSPOT_COMMIT",
+        module.EXPECTED_QNTYSPOT_COMMIT,
+    )
+    monkeypatch.setattr(
+        module,
+        "CURRENT_IMPLEMENTATION_DIGEST",
+        module.EXPECTED_IMPLEMENTATION_DIGEST,
+    )
+
+
 def test_epoch5_governance_artifact_is_exact_and_forbids_epoch4_reuse() -> None:
     raw = GOVERNANCE.read_bytes()
     doc = json.loads(raw)
@@ -88,10 +101,45 @@ def test_epoch5_governance_artifact_is_exact_and_forbids_epoch4_reuse() -> None:
     assert doc["production_effects"]["epoch_5_ledger_created"] == "NO"
 
 
+def test_epoch5_current_rebind_refuses_before_preflight_key_or_ledger(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _module()
+    private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
+    root = _production_root(tmp_path, public, trust_bytes)
+    monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
+    monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
+    monkeypatch.setattr(
+        module,
+        "_run_read_only_preflight",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("superseded epoch-5 lane must refuse before preflight")
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_private_key",
+        lambda path: (_ for _ in ()).throw(
+            AssertionError("superseded epoch-5 lane must refuse before key access")
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="historical-only"):
+        module.issue_once(
+            production_root=root,
+            private_key_path=private_path,
+            issued_at_epoch_s=2_000_000_000,
+        )
+
+    assert not (root / "state/epoch-5").exists()
+
+
 def test_one_shot_epoch5_issuance_is_exact_and_idempotent(tmp_path: Path, monkeypatch) -> None:
     module = _module()
     private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
     root = _production_root(tmp_path, public, trust_bytes)
+    _enable_historical_epoch5(module, monkeypatch)
 
     monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
     monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
@@ -156,6 +204,7 @@ def test_active_ink_preflight_refuses_before_key_access(tmp_path: Path, monkeypa
     module = _module()
     private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
     root = _production_root(tmp_path, public, trust_bytes)
+    _enable_historical_epoch5(module, monkeypatch)
     monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
     monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
     monkeypatch.setattr(
@@ -184,6 +233,7 @@ def test_wrong_private_key_fingerprint_creates_no_epoch5_ledger(tmp_path: Path, 
     module = _module()
     private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
     root = _production_root(tmp_path, public, trust_bytes)
+    _enable_historical_epoch5(module, monkeypatch)
     monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
     monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
     monkeypatch.setattr(
@@ -219,6 +269,7 @@ def test_different_issued_at_cannot_append_second_epoch5_grant(
     module = _module()
     private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
     root = _production_root(tmp_path, public, trust_bytes)
+    _enable_historical_epoch5(module, monkeypatch)
     monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
     monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
     monkeypatch.setattr(
