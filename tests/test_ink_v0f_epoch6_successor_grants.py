@@ -184,3 +184,37 @@ def test_epoch6_refuses_overlapping_new_request_before_key_access(
     db = root / module.EPOCH6_RELATIVE_DB
     with sqlite3.connect(db) as connection:
         assert connection.execute("SELECT COUNT(*) FROM issuances").fetchone()[0] == 1
+
+
+
+def test_epoch6_refuses_backdated_new_request_even_when_not_active_at_backdate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _module()
+    key_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
+    root = _root(tmp_path, public, trust_bytes)
+    _configure(module, monkeypatch, fingerprint, trust_digest)
+    monkeypatch.setattr(
+        module,
+        "_run_read_only_preflight",
+        lambda root, *, now_epoch_s, allow_active_request_id: {"active_ink_grants": []},
+    )
+
+    first_t = 2_000_001_000
+    module.issue_once(
+        production_root=root,
+        private_key_path=key_path,
+        issued_at_epoch_s=first_t,
+    )
+
+    with pytest.raises(RuntimeError, match="start at or after latest receipt expiry"):
+        module.issue_once(
+            production_root=root,
+            private_key_path=key_path,
+            issued_at_epoch_s=first_t - 100,
+        )
+
+    db = root / module.EPOCH6_RELATIVE_DB
+    with sqlite3.connect(db) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM issuances").fetchone()[0] == 1
