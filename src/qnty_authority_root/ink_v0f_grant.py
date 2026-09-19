@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .contract import AuthorityGrantReceiptV0, AuthorityPolicyRefV0
 from .errors import IssuancePolicyError
@@ -126,6 +126,10 @@ def issue_ink_v0f_grant(
     trust_config_version: int,
     issued_at_epoch_s: int,
     duration_s: int = 900,
+    historical_request_validator: Callable[
+        [str, AuthorityIssuanceRequestV0, AuthorityGrantReceiptV0], bool
+    ]
+    | None = None,
 ) -> InkV0FIssuanceBundleV0:
     """Issue one exact, short-lived Ink V0F receipt through the durable issuer."""
 
@@ -146,6 +150,7 @@ def issue_ink_v0f_grant(
         minimum_authority_epoch=minimum_authority_epoch,
         trust_config_version=trust_config_version,
         signer=signer,
+        historical_request_validator=historical_request_validator,
     )
     receipt_bytes = issuer.issue(request_id=request_id, request=request)
     return InkV0FIssuanceBundleV0(
