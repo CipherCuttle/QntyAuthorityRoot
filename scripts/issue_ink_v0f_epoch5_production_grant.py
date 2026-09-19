@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import json
 import os
+import sqlite3
 import stat
 import sys
 from pathlib import Path
@@ -15,8 +16,12 @@ from qnty_authority_root import (
     AuthorityGrantReceiptV0,
     canonical_json_bytes,
     sha256_hex,
+    verify_receipt_signature,
 )
-from qnty_authority_root.ink_v0f_grant import issue_ink_v0f_grant
+from qnty_authority_root.ink_v0f_grant import (
+    ink_v0f_request_id,
+    issue_ink_v0f_grant,
+)
 
 EXPECTED_PUBLIC_KEY_FINGERPRINT = (
     "baf4f9034a0ae76066a245138ce7c6891102755e3262e34a9a1140d12b45adbe"
@@ -59,14 +64,23 @@ class FileEd25519Signer:
         return self._key.sign(message)
 
 
-def _run_read_only_preflight(root: Path, *, now_epoch_s: int) -> dict[str, object]:
+def _run_read_only_preflight(
+    root: Path,
+    *,
+    now_epoch_s: int,
+    allow_active_request_id: str | None,
+) -> dict[str, object]:
     inspector_path = Path(__file__).with_name("inspect_ink_v0f_production_state.py")
     spec = importlib.util.spec_from_file_location("ink_v0f_production_state_inspector", inspector_path)
     if spec is None or spec.loader is None:
         raise RuntimeError("could not load production-state inspector")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.inspect_production_root(root, now_epoch_s=now_epoch_s)
+    return module.inspect_production_root(
+        root,
+        now_epoch_s=now_epoch_s,
+        allow_active_request_id=allow_active_request_id,
+    )
 
 
 def _load_private_key(path: Path) -> FileEd25519Signer:
@@ -87,6 +101,103 @@ def _load_private_key(path: Path) -> FileEd25519Signer:
     if fingerprint != EXPECTED_PUBLIC_KEY_FINGERPRINT:
         raise RuntimeError("private key does not match provisioned AuthorityRoot fingerprint")
     return signer
+
+
+def _assert_exact_receipt(receipt: AuthorityGrantReceiptV0, *, issued_at_epoch_s: int) -> None:
+    policy = receipt.authority_policy
+    if receipt.authority_epoch != AUTHORITY_EPOCH:
+        raise RuntimeError("receipt authority epoch mismatch")
+    if receipt.issued_at_epoch_s != issued_at_epoch_s:
+        raise RuntimeError("receipt issued-at mismatch")
+    if policy.not_before_epoch_s != issued_at_epoch_s:
+        raise RuntimeError("receipt not-before mismatch")
+    if policy.not_after_epoch_s != issued_at_epoch_s + DURATION_S:
+        raise RuntimeError("receipt duration mismatch")
+    if policy.permitted_repository_commit != EXPECTED_QNTYSPOT_COMMIT:
+        raise RuntimeError("receipt QntySpot commit mismatch")
+    if policy.permitted_implementation_digest != EXPECTED_IMPLEMENTATION_DIGEST:
+        raise RuntimeError("receipt implementation digest mismatch")
+    if policy.permitted_taker_address != EXPECTED_TAKER:
+        raise RuntimeError("receipt taker mismatch")
+    if policy.permitted_network_id != EXPECTED_NETWORK:
+        raise RuntimeError("receipt network mismatch")
+    if policy.permitted_venue_id != EXPECTED_VENUE:
+        raise RuntimeError("receipt venue mismatch")
+    if policy.max_reservation_atomic != EXPECTED_ATOMIC:
+        raise RuntimeError("receipt reservation cap mismatch")
+    if policy.max_cumulative_atomic != EXPECTED_ATOMIC:
+        raise RuntimeError("receipt cumulative cap mismatch")
+    if int(policy.granted_level) != 3:
+        raise RuntimeError("receipt authority level mismatch")
+
+
+def _inspect_epoch5_history(
+    root: Path,
+    *,
+    anchor: bytes,
+    issued_at_epoch_s: int,
+) -> bytes | None:
+    db_path = root / "state" / "epoch-5" / "authority-root-issuance-v0-epoch-5.sqlite3"
+    if not db_path.exists():
+        return None
+    if not db_path.is_file():
+        raise RuntimeError("epoch-5 issuance database path is not a file")
+
+    expected_request_id = ink_v0f_request_id(
+        issued_at_epoch_s=issued_at_epoch_s,
+        duration_s=DURATION_S,
+    )
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only = ON")
+        if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise RuntimeError("epoch-5 issuance database failed integrity_check")
+        tables = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if "issuer_metadata" not in tables or "issuances" not in tables:
+            raise RuntimeError("epoch-5 issuance database has unsupported schema")
+        metadata = connection.execute(
+            "SELECT * FROM issuer_metadata WHERE singleton = 1"
+        ).fetchone()
+        if metadata is None:
+            raise RuntimeError("epoch-5 issuance database is missing issuer metadata")
+        if (
+            int(metadata["authority_epoch"]) != AUTHORITY_EPOCH
+            or int(metadata["minimum_authority_epoch"]) != MINIMUM_AUTHORITY_EPOCH
+            or int(metadata["trust_config_version"]) != TRUST_CONFIG_VERSION
+            or str(metadata["root_id"]) != "qnty-authority-root-v0"
+            or str(metadata["public_key_fingerprint"]) != EXPECTED_PUBLIC_KEY_FINGERPRINT
+            or str(metadata["trust_config_digest"]) != EXPECTED_TRUST_CONFIG_DIGEST
+            or str(metadata["repository_identity"]) != "CipherCuttle/QntySpot"
+        ):
+            raise RuntimeError("epoch-5 issuance database metadata mismatch")
+
+        rows = connection.execute(
+            "SELECT request_id, authority_epoch, serial, receipt_id, receipt_bytes "
+            "FROM issuances ORDER BY serial"
+        ).fetchall()
+        if not rows:
+            return None
+        if len(rows) != 1:
+            raise RuntimeError("epoch-5 lane already contains foreign or multiple issuance history")
+        row = rows[0]
+        if str(row["request_id"]) != expected_request_id:
+            raise RuntimeError("epoch-5 lane is already committed to a different request")
+        receipt_bytes = bytes(row["receipt_bytes"])
+        receipt = AuthorityGrantReceiptV0.from_bytes(receipt_bytes)
+        verify_receipt_signature(receipt, anchor)
+        if (
+            receipt.authority_epoch != int(row["authority_epoch"])
+            or receipt.serial != int(row["serial"])
+            or receipt.receipt_id != str(row["receipt_id"])
+        ):
+            raise RuntimeError("epoch-5 receipt does not match immutable ledger row")
+        _assert_exact_receipt(receipt, issued_at_epoch_s=issued_at_epoch_s)
+        return receipt_bytes
 
 
 def _atomic_write_new(path: Path, data: bytes, *, mode: int) -> None:
@@ -137,15 +248,39 @@ def issue_once(
     if sha256_hex(trust_path.read_bytes()) != EXPECTED_TRUST_CONFIG_DIGEST:
         raise RuntimeError("public AuthorityRoot trust-config digest mismatch")
 
-    preflight = _run_read_only_preflight(root, now_epoch_s=issued_at_epoch_s)
-    if preflight["active_ink_grants"]:
-        raise RuntimeError("active Ink grant detected during production preflight")
+    expected_request_id = ink_v0f_request_id(
+        issued_at_epoch_s=issued_at_epoch_s,
+        duration_s=DURATION_S,
+    )
+    committed_before = _inspect_epoch5_history(
+        root,
+        anchor=anchor,
+        issued_at_epoch_s=issued_at_epoch_s,
+    )
+    preflight = _run_read_only_preflight(
+        root,
+        now_epoch_s=issued_at_epoch_s,
+        allow_active_request_id=expected_request_id,
+    )
+    active = preflight["active_ink_grants"]
+    if active and committed_before is None:
+        raise RuntimeError("active Ink grant detected without exact epoch-5 recovery state")
+
+    public_dir = root / "public"
+    epoch_dir = root / "state" / "epoch-5"
+    receipt_path = public_dir / RECEIPT_NAME
+    receipt_sidecar = public_dir / RECEIPT_SIDECAR_NAME
+    record_path = epoch_dir / ISSUANCE_RECORD_NAME
+    record_sidecar = epoch_dir / ISSUANCE_RECORD_SIDECAR_NAME
+    if committed_before is None and any(
+        path.exists() for path in (receipt_path, receipt_sidecar, record_path, record_sidecar)
+    ):
+        raise RuntimeError("orphan epoch-5 export exists before issuance")
 
     signer = _load_private_key(private_key_path)
     if signer.public_key_bytes != anchor:
         raise RuntimeError("private key public bytes do not equal provisioned public anchor")
 
-    epoch_dir = root / "state" / "epoch-5"
     epoch_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(epoch_dir, 0o700)
     db_path = epoch_dir / "authority-root-issuance-v0-epoch-5.sqlite3"
@@ -166,35 +301,10 @@ def issue_once(
         raise RuntimeError("issued bundle public anchor mismatch")
 
     receipt = AuthorityGrantReceiptV0.from_bytes(bundle.receipt_bytes)
+    _assert_exact_receipt(receipt, issued_at_epoch_s=issued_at_epoch_s)
     policy = receipt.authority_policy
-    if receipt.authority_epoch != AUTHORITY_EPOCH:
-        raise RuntimeError("receipt authority epoch mismatch")
-    if receipt.issued_at_epoch_s != issued_at_epoch_s:
-        raise RuntimeError("receipt issued-at mismatch")
-    if policy.not_before_epoch_s != issued_at_epoch_s:
-        raise RuntimeError("receipt not-before mismatch")
-    if policy.not_after_epoch_s != issued_at_epoch_s + DURATION_S:
-        raise RuntimeError("receipt duration mismatch")
-    if policy.permitted_repository_commit != EXPECTED_QNTYSPOT_COMMIT:
-        raise RuntimeError("receipt QntySpot commit mismatch")
-    if policy.permitted_implementation_digest != EXPECTED_IMPLEMENTATION_DIGEST:
-        raise RuntimeError("receipt implementation digest mismatch")
-    if policy.permitted_taker_address != EXPECTED_TAKER:
-        raise RuntimeError("receipt taker mismatch")
-    if policy.permitted_network_id != EXPECTED_NETWORK:
-        raise RuntimeError("receipt network mismatch")
-    if policy.permitted_venue_id != EXPECTED_VENUE:
-        raise RuntimeError("receipt venue mismatch")
-    if policy.max_reservation_atomic != EXPECTED_ATOMIC:
-        raise RuntimeError("receipt reservation cap mismatch")
-    if policy.max_cumulative_atomic != EXPECTED_ATOMIC:
-        raise RuntimeError("receipt cumulative cap mismatch")
-    if int(policy.granted_level) != 3:
-        raise RuntimeError("receipt authority level mismatch")
-
-    public_dir = root / "public"
-    receipt_path = public_dir / RECEIPT_NAME
-    receipt_sidecar = public_dir / RECEIPT_SIDECAR_NAME
+    if committed_before is not None and bundle.receipt_bytes != committed_before:
+        raise RuntimeError("exact epoch-5 recovery returned different committed bytes")
     receipt_digest = sha256_hex(bundle.receipt_bytes)
 
     record = {
@@ -218,9 +328,9 @@ def issue_once(
         f"{receipt_digest}  {RECEIPT_NAME}\n".encode("ascii"),
         mode=0o644,
     )
-    _atomic_write_new(epoch_dir / ISSUANCE_RECORD_NAME, record_bytes, mode=0o600)
+    _atomic_write_new(record_path, record_bytes, mode=0o600)
     _atomic_write_new(
-        epoch_dir / ISSUANCE_RECORD_SIDECAR_NAME,
+        record_sidecar,
         f"{record_digest}  {ISSUANCE_RECORD_NAME}\n".encode("ascii"),
         mode=0o600,
     )
