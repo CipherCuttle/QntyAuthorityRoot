@@ -36,6 +36,8 @@ def inspect_production_root(
     *,
     now_epoch_s: int,
     allow_active_request_id: str | None = None,
+    allow_active_authority_epoch: int | None = None,
+    allow_active_relative_path: str | None = None,
 ) -> dict[str, Any]:
     root = production_root.resolve()
     if not root.is_dir():
@@ -167,11 +169,12 @@ def inspect_production_root(
     if active_ink:
         exact_recovery = (
             allow_active_request_id is not None
+            and allow_active_authority_epoch is not None
+            and allow_active_relative_path is not None
             and len(active_ink) == 1
             and active_ink[0]["request_id"] == allow_active_request_id
-            and active_ink[0]["relative_path"]
-            == "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
-            and active_ink[0]["authority_epoch"] == 5
+            and active_ink[0]["relative_path"] == allow_active_relative_path
+            and active_ink[0]["authority_epoch"] == allow_active_authority_epoch
         )
         if not exact_recovery:
             raise RuntimeError(
