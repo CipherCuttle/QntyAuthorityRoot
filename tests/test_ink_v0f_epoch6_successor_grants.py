@@ -174,7 +174,10 @@ def test_epoch6_refuses_overlapping_new_request_before_key_access(
         "_load_private_key",
         lambda path: (_ for _ in ()).throw(AssertionError("key must not be read")),
     )
-    with pytest.raises(RuntimeError, match="active Ink grant"):
+    with pytest.raises(
+        RuntimeError,
+        match="start at or after latest receipt expiry",
+    ):
         module.issue_once(
             production_root=root,
             private_key_path=key_path,
