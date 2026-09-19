@@ -280,7 +280,7 @@ def test_real_level3_grant_reaches_durable_signing_boundary_without_broadcast(
         expected_config_digest=bundle.trust_config_digest,
         anchor_bytes=bundle.public_anchor_bytes,
     )
-    from qntyspot.execution_contract import AuthorityGrantReceiptV0 as QntySpotAuthorityGrantReceiptV0
+    from qntyspot.authority_root import AuthorityGrantReceiptV0 as QntySpotAuthorityGrantReceiptV0
 
     receipt = QntySpotAuthorityGrantReceiptV0.from_bytes(bundle.receipt_bytes)
 
