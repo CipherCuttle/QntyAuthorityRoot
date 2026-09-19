@@ -101,10 +101,10 @@ def test_epoch6_native_eth_rebind_is_canonical_and_exact() -> None:
         "6da9c107fdb1e67e1f9284c2065c0254e86d55eaa61af574501dba7c063cb009"
     )
     assert doc["exact_grant_scope"]["permitted_repository_commit"] == (
-        "deab9e91ee3986f223ec66e21f9438d0d62ff6df"
+        "95aaa869f490474968d16f51bfac5ad939a3a074"
     )
     assert doc["exact_grant_scope"]["permitted_implementation_digest"] == (
-        "8ebcc89564ebd554015b16c44f8ca964d069105c991a1455dd7f8d2c3a8455e6"
+        "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
     )
     assert doc["execution_funding"] == {
         "buy_wallet_asset": "NATIVE_ETH",
