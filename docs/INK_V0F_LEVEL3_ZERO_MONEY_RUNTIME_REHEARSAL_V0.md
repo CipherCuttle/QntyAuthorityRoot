@@ -6,17 +6,21 @@ private key.
 
 ## Exact bound identities
 
-AuthorityRoot canonical merge:
+AuthorityRoot base merge:
 
 `dfd91595896723a78fe892f80daabe68efa60e7b`
 
+Current rehearsal branch binding artifact:
+
+`INK_V0F_LEVEL3_GRANT_PREPARATION_V1.json` / `00ab5e8721d4ccd59d2ada0f7574a6b3368f930341cb72d9b8d3c00da865ab3d`
+
 QntySpot canonical Level-3 merge:
 
-`79d66648b80173f71c2e5a3b307984d525edf479`
+`af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6`
 
 QntySpot implementation digest:
 
-`ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea`
+`f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a`
 
 Frozen taker:
 
