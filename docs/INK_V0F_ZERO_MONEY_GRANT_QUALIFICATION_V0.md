@@ -53,12 +53,13 @@ commit, so concurrent issuers cannot race around the single-active-grant rule.
 
 This qualification is pinned to the canonical QntySpot Level-3 merge:
 
-`79d66648b80173f71c2e5a3b307984d525edf479`
+`af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6`
 
 with implementation digest:
 
-`ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea`
+`f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a`
 
-The original first-grant preparation artifact remains immutable historical
-evidence, but its old QntySpot commit/digest tuple is intentionally stale and
-inadmissible for new Ink V0F issuance.
+The original first-grant artifact and the superseded Level3-V0 preparation
+artifact remain immutable historical evidence. Both prior QntySpot
+commit/digest tuples are intentionally stale and inadmissible for new Ink V0F
+issuance.
