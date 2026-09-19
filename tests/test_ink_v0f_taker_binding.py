@@ -19,15 +19,20 @@ from qnty_authority_root.ink_v0f_binding import (
     INK_V0F_HISTORICAL_GRANT_PREPARATION_DIGEST,
     INK_V0F_HISTORICAL_QNTYSPOT_COMMIT,
     INK_V0F_HISTORICAL_QNTYSPOT_IMPLEMENTATION_DIGEST,
+    INK_V0F_LEVEL3_V0_GRANT_PREPARATION_DIGEST,
+    INK_V0F_LEVEL3_V0_QNTYSPOT_COMMIT,
+    INK_V0F_LEVEL3_V0_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_TAKER_ADDRESS,
-    InkV0FGrantPreparationV0,
+    InkV0FGrantPreparationV1,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V0.json"
+ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V1.json"
 SIDECAR = ARTIFACT.with_suffix(".sha256")
+PREVIOUS_LEVEL3_ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V0.json"
+PREVIOUS_LEVEL3_SIDECAR = PREVIOUS_LEVEL3_ARTIFACT.with_suffix(".sha256")
 HISTORICAL_ARTIFACT = ROOT / "artifacts" / "INK_V0F_GRANT_PREPARATION_V0.json"
 HISTORICAL_SIDECAR = HISTORICAL_ARTIFACT.with_suffix(".sha256")
 
@@ -71,9 +76,9 @@ def request() -> AuthorityIssuanceRequestV0:
 def test_exact_user_taker_and_qntyspot_identity_are_frozen() -> None:
     prep = INK_V0F_GRANT_PREPARATION
     assert INK_V0F_TAKER_ADDRESS == "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
-    assert INK_V0F_QNTYSPOT_COMMIT == "79d66648b80173f71c2e5a3b307984d525edf479"
+    assert INK_V0F_QNTYSPOT_COMMIT == "af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6"
     assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
-        "ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea"
+        "f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a"
     )
     assert prep.maximum_issuable_level is AuthorityLevel.HUMAN_SIGNED_EXECUTION
     assert prep.max_reservation_atomic == 1_000_000_000_000_000
@@ -90,6 +95,19 @@ def test_preparation_artifact_is_exact_and_digest_bound() -> None:
     )
 
 
+def test_previous_level3_preparation_artifact_remains_immutable() -> None:
+    raw = PREVIOUS_LEVEL3_ARTIFACT.read_bytes()
+    assert INK_V0F_LEVEL3_V0_QNTYSPOT_COMMIT.encode() in raw
+    assert INK_V0F_LEVEL3_V0_QNTYSPOT_IMPLEMENTATION_DIGEST.encode() in raw
+    from qnty_authority_root import sha256_hex
+
+    assert sha256_hex(raw) == INK_V0F_LEVEL3_V0_GRANT_PREPARATION_DIGEST
+    assert PREVIOUS_LEVEL3_SIDECAR.read_text(encoding="ascii") == (
+        f"{INK_V0F_LEVEL3_V0_GRANT_PREPARATION_DIGEST}  "
+        f"{PREVIOUS_LEVEL3_ARTIFACT.name}\n"
+    )
+
+
 def test_historical_preparation_artifact_remains_immutable() -> None:
     raw = HISTORICAL_ARTIFACT.read_bytes()
     assert INK_V0F_HISTORICAL_QNTYSPOT_COMMIT.encode() in raw
@@ -102,12 +120,28 @@ def test_historical_preparation_artifact_remains_immutable() -> None:
     )
 
 
-def test_historical_qntyspot_identity_is_no_longer_issuable() -> None:
+@pytest.mark.parametrize(
+    ("commit", "digest"),
+    (
+        (
+            INK_V0F_HISTORICAL_QNTYSPOT_COMMIT,
+            INK_V0F_HISTORICAL_QNTYSPOT_IMPLEMENTATION_DIGEST,
+        ),
+        (
+            INK_V0F_LEVEL3_V0_QNTYSPOT_COMMIT,
+            INK_V0F_LEVEL3_V0_QNTYSPOT_IMPLEMENTATION_DIGEST,
+        ),
+    ),
+)
+def test_prior_qntyspot_identities_are_no_longer_issuable(
+    commit: str,
+    digest: str,
+) -> None:
     req = request()
     stale = replace(
         req.authority_policy,
-        permitted_repository_commit=INK_V0F_HISTORICAL_QNTYSPOT_COMMIT,
-        permitted_implementation_digest=INK_V0F_HISTORICAL_QNTYSPOT_IMPLEMENTATION_DIGEST,
+        permitted_repository_commit=commit,
+        permitted_implementation_digest=digest,
     )
     with pytest.raises(IssuancePolicyError, match="reviewed grant preparation"):
         assert_issuance_request_admissible(
@@ -157,6 +191,6 @@ def test_different_taker_cannot_be_put_in_ink_issuer_policy() -> None:
 
 def test_preparation_object_cannot_be_reconstructed_differently() -> None:
     with pytest.raises(IssuancePolicyError, match="frozen"):
-        InkV0FGrantPreparationV0(
+        InkV0FGrantPreparationV1(
             permitted_taker_address="0x00000000000000000000000000000000000000aa"
         )
