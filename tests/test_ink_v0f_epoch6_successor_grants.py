@@ -26,6 +26,9 @@ NATIVE_REBIND = ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_NATIVE_ETH_REBIND_V0
 RECONCILE_REBIND = (
     ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_RECONCILE_RUNTIME_REBIND_V0.json"
 )
+DURABLE_ENVELOPE_REBIND = (
+    ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_DURABLE_ENVELOPE_REBIND_V0.json"
+)
 
 
 def _module():
@@ -138,6 +141,31 @@ def test_epoch6_reconcile_runtime_rebind_is_canonical_and_exact() -> None:
     assert doc["renewal_contract"]["historical_request_recovery_after_rebind"] == (
         "FORBIDDEN"
     )
+
+
+def test_epoch6_durable_envelope_rebind_is_canonical_and_exact() -> None:
+    raw = DURABLE_ENVELOPE_REBIND.read_bytes()
+    doc = json.loads(raw)
+    assert raw == canonical_json_bytes(doc)
+    assert sha256_hex(raw) == "d565c682fa768b164f86a146915b521d94c2423c967890964da7a33306a7b283"
+    assert doc["current_grant_preparation_digest"] == (
+        "b09c2839938bee7f42b612d19be34016ac10979d0f154330777ea75e3ab48abf"
+    )
+    assert doc["exact_grant_scope"]["permitted_repository_commit"] == (
+        "928b110ee9e5202d411487ee1ede52a022e097c0"
+    )
+    assert doc["exact_grant_scope"]["permitted_implementation_digest"] == (
+        "0eebedcd5028ada31899dde2794fc783970df13e461dfd85353ed61c22aa4e8d"
+    )
+    assert doc["previous_grant_preparation"]["digest"] == (
+        "45420e0863b97248c21420ba2df295be115955c9e9955f62ef0d36baf5dbb584"
+    )
+    assert doc["production_effects"] == {
+        "authority_receipt_issued_now": "NO",
+        "broadcast": "NO",
+        "capital_moved": "NO",
+        "wallet_signature": "NO",
+    }
 
 
 def test_epoch6_scope_accepts_only_exact_historical_serial1_when_requested() -> None:
@@ -281,10 +309,10 @@ def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     assert receipt.issued_at_epoch_s == t
     assert receipt.authority_policy.not_after_epoch_s == t + 900
     assert receipt.authority_policy.permitted_repository_commit == (
-        "deab9e91ee3986f223ec66e21f9438d0d62ff6df"
+        "928b110ee9e5202d411487ee1ede52a022e097c0"
     )
     assert receipt.authority_policy.permitted_implementation_digest == (
-        "8ebcc89564ebd554015b16c44f8ca964d069105c991a1455dd7f8d2c3a8455e6"
+        "0eebedcd5028ada31899dde2794fc783970df13e461dfd85353ed61c22aa4e8d"
     )
 
 
