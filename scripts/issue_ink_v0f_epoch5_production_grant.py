@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
+import importlib.util
 import json
 import os
 import stat
@@ -57,6 +57,16 @@ class FileEd25519Signer:
 
     def sign(self, message: bytes) -> bytes:
         return self._key.sign(message)
+
+
+def _run_read_only_preflight(root: Path, *, now_epoch_s: int) -> dict[str, object]:
+    inspector_path = Path(__file__).with_name("inspect_ink_v0f_production_state.py")
+    spec = importlib.util.spec_from_file_location("ink_v0f_production_state_inspector", inspector_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not load production-state inspector")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.inspect_production_root(root, now_epoch_s=now_epoch_s)
 
 
 def _load_private_key(path: Path) -> FileEd25519Signer:
@@ -127,11 +137,17 @@ def issue_once(
     if sha256_hex(trust_path.read_bytes()) != EXPECTED_TRUST_CONFIG_DIGEST:
         raise RuntimeError("public AuthorityRoot trust-config digest mismatch")
 
+    preflight = _run_read_only_preflight(root, now_epoch_s=issued_at_epoch_s)
+    if preflight["active_ink_grants"]:
+        raise RuntimeError("active Ink grant detected during production preflight")
+
     signer = _load_private_key(private_key_path)
     if signer.public_key_bytes != anchor:
         raise RuntimeError("private key public bytes do not equal provisioned public anchor")
 
     epoch_dir = root / "state" / "epoch-5"
+    epoch_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(epoch_dir, 0o700)
     db_path = epoch_dir / "authority-root-issuance-v0-epoch-5.sqlite3"
 
     bundle = issue_ink_v0f_grant(
