@@ -8,7 +8,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from eth_keys import keys
 
-from qnty_authority_root import AuthorityGrantReceiptV0
 from qnty_authority_root.ink_v0f_binding import (
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
@@ -173,7 +172,9 @@ def test_real_level3_grant_reaches_durable_signing_boundary_without_broadcast(
         expected_config_digest=bundle.trust_config_digest,
         anchor_bytes=bundle.public_anchor_bytes,
     )
-    receipt = AuthorityGrantReceiptV0.from_bytes(bundle.receipt_bytes)
+    from qntyspot.execution_contract import AuthorityGrantReceiptV0 as QntySpotAuthorityGrantReceiptV0
+
+    receipt = QntySpotAuthorityGrantReceiptV0.from_bytes(bundle.receipt_bytes)
 
     policy = parse_policy(_policy_doc())
     ledger = open_ledger(str(tmp_path / "qntyspot.sqlite3"))
