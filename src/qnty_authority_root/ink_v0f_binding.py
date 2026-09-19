@@ -148,6 +148,10 @@ class InkV0FGrantPreparationV1:
         return digest_object(self.canonical_object())
 
 
+# Backward-compatible import alias for callers that imported the original
+# class name. The current frozen defaults/schema are V1.
+InkV0FGrantPreparationV0 = InkV0FGrantPreparationV1
+
 INK_V0F_GRANT_PREPARATION = InkV0FGrantPreparationV1()
 if INK_V0F_GRANT_PREPARATION.preparation_digest != INK_V0F_GRANT_PREPARATION_DIGEST:
     raise RuntimeError("Ink V0F grant preparation digest invariant failed")
