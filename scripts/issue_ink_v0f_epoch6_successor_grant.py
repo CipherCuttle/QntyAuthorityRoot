@@ -40,6 +40,14 @@ EXPECTED_NETWORK = "evm:57073"
 EXPECTED_VENUE = "inkyswap-v2-ink-mainnet"
 EXPECTED_ATOMIC = 10**15
 EPOCH6_RELATIVE_DB = "state/epoch-6/authority-root-issuance-v0-epoch-6.sqlite3"
+HISTORICAL_EPOCH6_SERIAL1 = {
+    "serial": 1,
+    "issued_at_epoch_s": 1789848200,
+    "not_after_epoch_s": 1789849100,
+    "receipt_id": "ead512e27a4f49b09f26de3ef42419941e35b1a171d082096ab53a5521c2fcc7",
+    "repository_commit": "95aaa869f490474968d16f51bfac5ad939a3a074",
+    "implementation_digest": "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f",
+}
 
 
 class FileEd25519Signer:
@@ -95,7 +103,11 @@ def _load_private_key(path: Path) -> FileEd25519Signer:
     return signer
 
 
-def _assert_scope(receipt: AuthorityGrantReceiptV0) -> None:
+def _assert_scope(
+    receipt: AuthorityGrantReceiptV0,
+    *,
+    allow_historical_serial1: bool = False,
+) -> str:
     p = receipt.authority_policy
     if receipt.authority_epoch != AUTHORITY_EPOCH:
         raise RuntimeError("receipt authority epoch mismatch")
@@ -103,10 +115,6 @@ def _assert_scope(receipt: AuthorityGrantReceiptV0) -> None:
         raise RuntimeError("receipt not-before mismatch")
     if p.not_after_epoch_s != receipt.issued_at_epoch_s + DURATION_S:
         raise RuntimeError("receipt duration mismatch")
-    if p.permitted_repository_commit != EXPECTED_QNTYSPOT_COMMIT:
-        raise RuntimeError("receipt QntySpot commit mismatch")
-    if p.permitted_implementation_digest != EXPECTED_IMPLEMENTATION_DIGEST:
-        raise RuntimeError("receipt implementation digest mismatch")
     if p.permitted_taker_address != EXPECTED_TAKER:
         raise RuntimeError("receipt taker mismatch")
     if p.permitted_network_id != EXPECTED_NETWORK:
@@ -117,6 +125,61 @@ def _assert_scope(receipt: AuthorityGrantReceiptV0) -> None:
         raise RuntimeError("receipt capital ceiling mismatch")
     if int(p.granted_level) != 3:
         raise RuntimeError("receipt authority level mismatch")
+
+    current = (
+        p.permitted_repository_commit == EXPECTED_QNTYSPOT_COMMIT
+        and p.permitted_implementation_digest == EXPECTED_IMPLEMENTATION_DIGEST
+    )
+    if current:
+        return "CURRENT"
+
+    historical = (
+        allow_historical_serial1
+        and receipt.serial == HISTORICAL_EPOCH6_SERIAL1["serial"]
+        and receipt.issued_at_epoch_s
+        == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
+        and p.not_after_epoch_s
+        == HISTORICAL_EPOCH6_SERIAL1["not_after_epoch_s"]
+        and p.permitted_repository_commit
+        == HISTORICAL_EPOCH6_SERIAL1["repository_commit"]
+        and p.permitted_implementation_digest
+        == HISTORICAL_EPOCH6_SERIAL1["implementation_digest"]
+    )
+    if historical:
+        return "HISTORICAL_SERIAL1"
+
+    if p.permitted_repository_commit != EXPECTED_QNTYSPOT_COMMIT:
+        raise RuntimeError("receipt QntySpot commit mismatch")
+    raise RuntimeError("receipt implementation digest mismatch")
+
+
+def _allow_exact_historical_epoch6_request(
+    request_id: str,
+    request: object,
+    receipt: AuthorityGrantReceiptV0,
+) -> bool:
+    if request_id != "ink-v0f-1789848200-900":
+        return False
+    if not hasattr(request, "authority_policy") or not hasattr(request, "issued_at_epoch_s"):
+        return False
+    policy = request.authority_policy
+    return bool(
+        receipt.serial == HISTORICAL_EPOCH6_SERIAL1["serial"]
+        and receipt.issued_at_epoch_s == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
+        and request.issued_at_epoch_s == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
+        and policy.not_before_epoch_s == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
+        and policy.not_after_epoch_s == HISTORICAL_EPOCH6_SERIAL1["not_after_epoch_s"]
+        and policy.permitted_repository_commit
+        == HISTORICAL_EPOCH6_SERIAL1["repository_commit"]
+        and policy.permitted_implementation_digest
+        == HISTORICAL_EPOCH6_SERIAL1["implementation_digest"]
+        and policy.permitted_taker_address == EXPECTED_TAKER
+        and policy.permitted_network_id == EXPECTED_NETWORK
+        and policy.permitted_venue_id == EXPECTED_VENUE
+        and policy.max_reservation_atomic == EXPECTED_ATOMIC
+        and policy.max_cumulative_atomic == EXPECTED_ATOMIC
+        and int(policy.granted_level) == 3
+    )
 
 
 def _inspect_epoch6_history(
@@ -172,7 +235,10 @@ def _inspect_epoch6_history(
                 or receipt.receipt_id != str(row["receipt_id"])
             ):
                 raise RuntimeError("epoch-6 receipt does not match immutable ledger row")
-            _assert_scope(receipt)
+            scope_kind = _assert_scope(
+                receipt,
+                allow_historical_serial1=True,
+            )
             if (
                 previous_not_after is not None
                 and receipt.authority_policy.not_before_epoch_s < previous_not_after
@@ -182,6 +248,10 @@ def _inspect_epoch6_history(
             if str(row["request_id"]) == expected_request_id:
                 if receipt.issued_at_epoch_s != issued_at_epoch_s:
                     raise RuntimeError("epoch-6 exact request has different issued-at")
+                if scope_kind != "CURRENT":
+                    raise RuntimeError(
+                        "historical epoch-6 request cannot be recovered after authority rebind"
+                    )
                 if exact is not None:
                     raise RuntimeError("epoch-6 history contains duplicate request id")
                 exact = receipt_bytes
@@ -272,6 +342,7 @@ def issue_once(
         trust_config_version=TRUST_CONFIG_VERSION,
         issued_at_epoch_s=issued_at_epoch_s,
         duration_s=DURATION_S,
+        historical_request_validator=_allow_exact_historical_epoch6_request,
     )
     if bundle.trust_config_digest != EXPECTED_TRUST_CONFIG_DIGEST or bundle.public_anchor_bytes != anchor:
         raise RuntimeError("issued bundle trust continuity mismatch")

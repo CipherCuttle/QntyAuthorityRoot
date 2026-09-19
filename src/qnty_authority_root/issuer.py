@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .canon import canonical_json_bytes, sha256_hex, strict_json_loads
 from .contract import (
@@ -50,6 +50,10 @@ class AuthorityIssuer:
         minimum_authority_epoch: int,
         trust_config_version: int,
         signer: Ed25519Signer,
+        historical_request_validator: Callable[
+            [str, AuthorityIssuanceRequestV0, AuthorityGrantReceiptV0], bool
+        ]
+        | None = None,
     ) -> None:
         issuer_policy = snapshot_issuance_policy(issuer_policy)
         if type(authority_epoch) is not int or authority_epoch <= 0:
@@ -64,6 +68,10 @@ class AuthorityIssuer:
             raise IssuancePolicyError("db_path must be explicit")
         if not hasattr(signer, "sign") or not hasattr(signer, "public_key_bytes"):
             raise IssuancePolicyError("signer must be an injected Ed25519Signer")
+        if historical_request_validator is not None and not callable(
+            historical_request_validator
+        ):
+            raise IssuancePolicyError("historical_request_validator must be callable")
         public_key = signer.public_key_bytes
         if type(public_key) is not bytes or len(public_key) != 32:
             raise IssuancePolicyError("signer public_key_bytes must be exactly 32 bytes")
@@ -74,6 +82,7 @@ class AuthorityIssuer:
         self._minimum_authority_epoch = minimum_authority_epoch
         self._trust_config_version = trust_config_version
         self._signer = signer
+        self._historical_request_validator = historical_request_validator
         self._public_key_bytes = public_key
         self._root = self._build_trusted_root()
         self._initialize_database()
@@ -142,6 +151,7 @@ class AuthorityIssuer:
                         prior_bytes,
                         row=prior_row,
                         request_id=str(prior_row["request_id"]),
+                        allow_historical=True,
                     )
                     prior = AuthorityGrantReceiptV0.from_bytes(prior_bytes)
                     prior_policy = prior.authority_policy
@@ -268,6 +278,7 @@ class AuthorityIssuer:
         request: AuthorityIssuanceRequestV0 | None = None,
         request_id: str,
         expected_request_record_bytes: bytes | None = None,
+        allow_historical: bool = False,
     ) -> None:
         """Validate stored bytes before any application API exposes them."""
         try:
@@ -313,7 +324,24 @@ class AuthorityIssuer:
         try:
             assert_issuance_request_admissible(self._policy, stored_request)
         except IssuancePolicyError as exc:
-            raise DatabaseError(f"committed request is no longer admissible: {exc}") from exc
+            historical_ok = False
+            if allow_historical and self._historical_request_validator is not None:
+                try:
+                    historical_ok = bool(
+                        self._historical_request_validator(
+                            request_id,
+                            stored_request,
+                            receipt,
+                        )
+                    )
+                except Exception as validator_exc:
+                    raise DatabaseError(
+                        "historical committed-request validator failed closed"
+                    ) from validator_exc
+            if not historical_ok:
+                raise DatabaseError(
+                    f"committed request is no longer admissible: {exc}"
+                ) from exc
         if request is not None and request != stored_request:
             raise DatabaseError("committed receipt does not match the canonical request")
 

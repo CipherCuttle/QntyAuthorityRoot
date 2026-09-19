@@ -10,12 +10,22 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from qnty_authority_root import AuthorityGrantReceiptV0, canonical_json_bytes, sha256_hex
+from qnty_authority_root import (
+    AuthorityGrantReceiptV0,
+    AuthorityIssuanceRequestV0,
+    AuthorityLevel,
+    AuthorityPolicyRefV0,
+    canonical_json_bytes,
+    sha256_hex,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "issue_ink_v0f_epoch6_successor_grant.py"
 GOVERNANCE = ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_SUCCESSOR_GOVERNANCE_V0.json"
 NATIVE_REBIND = ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_NATIVE_ETH_REBIND_V0.json"
+RECONCILE_REBIND = (
+    ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_RECONCILE_RUNTIME_REBIND_V0.json"
+)
 
 
 def _module():
@@ -105,6 +115,138 @@ def test_epoch6_native_eth_rebind_is_canonical_and_exact() -> None:
     assert doc["production_effects"]["authority_receipt_issued_now"] == "NO"
 
 
+def test_epoch6_reconcile_runtime_rebind_is_canonical_and_exact() -> None:
+    raw = RECONCILE_REBIND.read_bytes()
+    doc = json.loads(raw)
+    assert raw == canonical_json_bytes(doc)
+    assert sha256_hex(raw) == "a8e860e99c37daf22afa8ec4ab36061957e593c827f61afa91eed2e0a33d850f"
+    assert doc["current_grant_preparation_digest"] == (
+        "45420e0863b97248c21420ba2df295be115955c9e9955f62ef0d36baf5dbb584"
+    )
+    assert doc["exact_grant_scope"]["permitted_repository_commit"] == (
+        "deab9e91ee3986f223ec66e21f9438d0d62ff6df"
+    )
+    assert doc["exact_grant_scope"]["permitted_implementation_digest"] == (
+        "8ebcc89564ebd554015b16c44f8ca964d069105c991a1455dd7f8d2c3a8455e6"
+    )
+    assert doc["historical_epoch6_serial_1"]["request_id"] == (
+        "ink-v0f-1789848200-900"
+    )
+    assert doc["historical_epoch6_serial_1"]["status"] == (
+        "EXPIRED_PREPARE_FAILED_NO_SIGNING_NO_BROADCAST"
+    )
+    assert doc["renewal_contract"]["historical_request_recovery_after_rebind"] == (
+        "FORBIDDEN"
+    )
+
+
+def test_epoch6_scope_accepts_only_exact_historical_serial1_when_requested() -> None:
+    module = _module()
+    policy = AuthorityPolicyRefV0(
+        authority_root_id="qnty-authority-root-v0",
+        granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
+        permitted_repository_commit="95aaa869f490474968d16f51bfac5ad939a3a074",
+        permitted_implementation_digest=(
+            "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
+        ),
+        permitted_network_id="evm:57073",
+        permitted_taker_address="0x3e604be3293d930069d0805e85379e0ca5fa01cb",
+        permitted_venue_id="inkyswap-v2-ink-mainnet",
+        max_reservation_atomic=10**15,
+        max_cumulative_atomic=10**15,
+        not_before_epoch_s=1789848200,
+        not_after_epoch_s=1789849100,
+    )
+    receipt = AuthorityGrantReceiptV0(
+        root_id="qnty-authority-root-v0",
+        public_key_fingerprint="11" * 32,
+        signature_algorithm="Ed25519",
+        authority_epoch=6,
+        serial=1,
+        issued_at_epoch_s=1789848200,
+        authority_policy=policy,
+        signature=b"\x01" * 64,
+    )
+    assert module._assert_scope(
+        receipt,
+        allow_historical_serial1=True,
+    ) == "HISTORICAL_SERIAL1"
+    with pytest.raises(RuntimeError, match="QntySpot commit mismatch"):
+        module._assert_scope(receipt)
+    with pytest.raises(RuntimeError):
+        module._assert_scope(
+            AuthorityGrantReceiptV0(
+                root_id=receipt.root_id,
+                public_key_fingerprint=receipt.public_key_fingerprint,
+                signature_algorithm=receipt.signature_algorithm,
+                authority_epoch=6,
+                serial=2,
+                issued_at_epoch_s=receipt.issued_at_epoch_s,
+                authority_policy=policy,
+                signature=receipt.signature,
+            ),
+            allow_historical_serial1=True,
+        )
+
+
+def test_epoch6_historical_validator_allows_only_real_v2_request_tuple() -> None:
+    module = _module()
+    policy = AuthorityPolicyRefV0(
+        authority_root_id="qnty-authority-root-v0",
+        granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
+        permitted_repository_commit="95aaa869f490474968d16f51bfac5ad939a3a074",
+        permitted_implementation_digest=(
+            "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
+        ),
+        permitted_network_id="evm:57073",
+        permitted_taker_address="0x3e604be3293d930069d0805e85379e0ca5fa01cb",
+        permitted_venue_id="inkyswap-v2-ink-mainnet",
+        max_reservation_atomic=10**15,
+        max_cumulative_atomic=10**15,
+        not_before_epoch_s=1789848200,
+        not_after_epoch_s=1789849100,
+    )
+    request = AuthorityIssuanceRequestV0(
+        repository_identity="CipherCuttle/QntySpot",
+        authority_policy=policy,
+        issued_at_epoch_s=1789848200,
+    )
+    receipt = AuthorityGrantReceiptV0(
+        root_id="qnty-authority-root-v0",
+        public_key_fingerprint="11" * 32,
+        signature_algorithm="Ed25519",
+        authority_epoch=6,
+        serial=1,
+        issued_at_epoch_s=1789848200,
+        authority_policy=policy,
+        signature=b"\x01" * 64,
+    )
+    assert module._allow_exact_historical_epoch6_request(
+        "ink-v0f-1789848200-900",
+        request,
+        receipt,
+    )
+    assert not module._allow_exact_historical_epoch6_request(
+        "ink-v0f-1789848201-900",
+        request,
+        receipt,
+    )
+    assert not module._allow_exact_historical_epoch6_request(
+        "ink-v0f-1789848200-900",
+        request,
+        AuthorityGrantReceiptV0(
+            root_id=receipt.root_id,
+            public_key_fingerprint=receipt.public_key_fingerprint,
+            signature_algorithm=receipt.signature_algorithm,
+            authority_epoch=6,
+            serial=2,
+            issued_at_epoch_s=receipt.issued_at_epoch_s,
+            authority_policy=policy,
+            signature=receipt.signature,
+        ),
+    )
+
+
 def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     module = _module()
     key_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
@@ -139,10 +281,10 @@ def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     assert receipt.issued_at_epoch_s == t
     assert receipt.authority_policy.not_after_epoch_s == t + 900
     assert receipt.authority_policy.permitted_repository_commit == (
-        "95aaa869f490474968d16f51bfac5ad939a3a074"
+        "deab9e91ee3986f223ec66e21f9438d0d62ff6df"
     )
     assert receipt.authority_policy.permitted_implementation_digest == (
-        "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
+        "8ebcc89564ebd554015b16c44f8ca964d069105c991a1455dd7f8d2c3a8455e6"
     )
 
 
