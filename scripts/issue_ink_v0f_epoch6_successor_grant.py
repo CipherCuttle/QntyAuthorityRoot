@@ -153,6 +153,35 @@ def _assert_scope(
     raise RuntimeError("receipt implementation digest mismatch")
 
 
+def _allow_exact_historical_epoch6_request(
+    request_id: str,
+    request: object,
+    receipt: AuthorityGrantReceiptV0,
+) -> bool:
+    if request_id != "ink-v0f-1789848200-900":
+        return False
+    if not hasattr(request, "authority_policy") or not hasattr(request, "issued_at_epoch_s"):
+        return False
+    policy = request.authority_policy
+    return bool(
+        receipt.serial == HISTORICAL_EPOCH6_SERIAL1["serial"]
+        and receipt.issued_at_epoch_s == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
+        and request.issued_at_epoch_s == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
+        and policy.not_before_epoch_s == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
+        and policy.not_after_epoch_s == HISTORICAL_EPOCH6_SERIAL1["not_after_epoch_s"]
+        and policy.permitted_repository_commit
+        == HISTORICAL_EPOCH6_SERIAL1["repository_commit"]
+        and policy.permitted_implementation_digest
+        == HISTORICAL_EPOCH6_SERIAL1["implementation_digest"]
+        and policy.permitted_taker_address == EXPECTED_TAKER
+        and policy.permitted_network_id == EXPECTED_NETWORK
+        and policy.permitted_venue_id == EXPECTED_VENUE
+        and policy.max_reservation_atomic == EXPECTED_ATOMIC
+        and policy.max_cumulative_atomic == EXPECTED_ATOMIC
+        and int(policy.granted_level) == 3
+    )
+
+
 def _inspect_epoch6_history(
     root: Path,
     *,
@@ -313,6 +342,7 @@ def issue_once(
         trust_config_version=TRUST_CONFIG_VERSION,
         issued_at_epoch_s=issued_at_epoch_s,
         duration_s=DURATION_S,
+        historical_request_validator=_allow_exact_historical_epoch6_request,
     )
     if bundle.trust_config_digest != EXPECTED_TRUST_CONFIG_DIGEST or bundle.public_anchor_bytes != anchor:
         raise RuntimeError("issued bundle trust continuity mismatch")
