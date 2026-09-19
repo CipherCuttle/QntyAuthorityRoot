@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from fractions import Fraction
 
 import pytest
 import rlp
@@ -29,12 +30,39 @@ from qntyspot.execution_contract import (
     ExecutionSessionV0,
     PHASE_GRANTED_AUTHORITY_LEVEL,
 )
-from qntyspot.ink import INK_CHAIN_ID, KRAKMASK_ADDRESS, WETH9_ADDRESS
+from qntyspot.ink import (
+    INK_CHAIN_ID,
+    INK_RPC_ENDPOINTS,
+    INKYSWAP_V2_FACTORY,
+    INKYSWAP_V2_POOL,
+    KRAKMASK_ADDRESS,
+    V2_FEE_DENOMINATOR,
+    V2_FEE_NUMERATOR,
+    WETH9_ADDRESS,
+    InkMarketObservationV0,
+    JsonRpcClient,
+)
 from qntyspot.ink_v0f_execution import (
     INK_V0F_ROUTER_ADDRESS,
-    encode_swap_exact_tokens_for_tokens,
+    INK_V0F_ROUTER_BYTECODE_LENGTH,
+    INK_V0F_ROUTER_BYTECODE_SHA256,
+    InkV0FRouterIdentityV0,
+)
+from qntyspot.ink_v0f_preauth import (
+    InkV0FAllowanceObservationV0,
+    InkV0FLiveVerifier,
+    InkV0FRouterObservationV0,
+    derive_live_ink_v0f_preview,
+)
+from qntyspot.ink_v0f_risk import (
+    INK_V0F_BASE_INSTRUMENT_ID,
+    INK_V0F_POOL_ADDRESS,
+    INK_V0F_QUOTE_INSTRUMENT_ID,
+    INK_V0F_VENUE_ID,
+    InkV0FRiskPolicyV0,
 )
 from qntyspot.keccak import keccak256
+from qntyspot.prelive_economics import DustLiveConcurrencyV0
 from qntyspot.ledger import ExecutionRuntime, open_ledger
 from qntyspot.policy import parse_policy
 from qntyspot.states import IntentState
@@ -128,6 +156,85 @@ def _policy_doc() -> dict[str, object]:
     }
 
 
+def _risk_policy() -> InkV0FRiskPolicyV0:
+    return InkV0FRiskPolicyV0(
+        repository_identity="CipherCuttle/QntySpot",
+        network_id=f"evm:{INK_CHAIN_ID}",
+        venue_id=INK_V0F_VENUE_ID,
+        pool_address=INK_V0F_POOL_ADDRESS,
+        base_instrument_id=INK_V0F_BASE_INSTRUMENT_ID,
+        quote_instrument_id=INK_V0F_QUOTE_INSTRUMENT_ID,
+        max_entry_atomic=ENTRY_ATOMIC,
+        max_cumulative_entry_atomic=ENTRY_ATOMIC,
+        concurrency=DustLiveConcurrencyV0(1, 1, 1, 1),
+        max_price_impact_bps=100,
+        max_slippage_bps=50,
+        max_grant_duration_s=DURATION_S,
+        profit_recycle_ratio=Fraction(0, 1),
+        banked_profit_ratio=Fraction(1, 1),
+    )
+
+
+def _router_identity() -> InkV0FRouterIdentityV0:
+    return InkV0FRouterIdentityV0(
+        address=INK_V0F_ROUTER_ADDRESS,
+        chain_id=INK_CHAIN_ID,
+        contract_name="UniswapV2Router02",
+        deployed_bytecode_length=INK_V0F_ROUTER_BYTECODE_LENGTH,
+        deployed_bytecode_sha256=INK_V0F_ROUTER_BYTECODE_SHA256,
+        factory_address=INKYSWAP_V2_FACTORY,
+        weth_address=WETH9_ADDRESS,
+    )
+
+
+def _market() -> InkMarketObservationV0:
+    return InkMarketObservationV0(
+        schema="INK_MARKET_OBSERVATION_V0",
+        chain_id=INK_CHAIN_ID,
+        pool_address=INKYSWAP_V2_POOL,
+        factory_address=INKYSWAP_V2_FACTORY,
+        token0=KRAKMASK_ADDRESS,
+        token1=WETH9_ADDRESS,
+        common_block=100,
+        provider_heads={INK_RPC_ENDPOINTS[0]: 105, INK_RPC_ENDPOINTS[1]: 104},
+        bytecode_present=True,
+        bytecode_sha256="11" * 32,
+        bytecode_length=1,
+        reserve0_atomic=10**21,
+        reserve1_atomic=10**21,
+        reserve_timestamp=1,
+        provider_evidence=({}, {}),
+        v2_fee_numerator=V2_FEE_NUMERATOR,
+        v2_fee_denominator=V2_FEE_DENOMINATOR,
+    )
+
+
+def _router_observation() -> InkV0FRouterObservationV0:
+    return InkV0FRouterObservationV0(
+        chain_id=INK_CHAIN_ID,
+        router_address=INK_V0F_ROUTER_ADDRESS,
+        common_block=100,
+        provider_heads={INK_RPC_ENDPOINTS[0]: 105, INK_RPC_ENDPOINTS[1]: 104},
+        bytecode_sha256=INK_V0F_ROUTER_BYTECODE_SHA256,
+        bytecode_length=INK_V0F_ROUTER_BYTECODE_LENGTH,
+        factory_address=INKYSWAP_V2_FACTORY,
+        weth_address=WETH9_ADDRESS,
+        provider_evidence=({}, {}),
+    )
+
+
+def _allowance_observation() -> InkV0FAllowanceObservationV0:
+    return InkV0FAllowanceObservationV0(
+        token_address=WETH9_ADDRESS,
+        owner_address=INK_V0F_TAKER_ADDRESS,
+        spender_address=INK_V0F_ROUTER_ADDRESS,
+        allowance_atomic=0,
+        common_block=100,
+        provider_heads={INK_RPC_ENDPOINTS[0]: 105, INK_RPC_ENDPOINTS[1]: 104},
+        provider_evidence=({}, {}),
+    )
+
+
 def _int_bytes(value: int) -> bytes:
     return b"" if value == 0 else value.to_bytes((value.bit_length() + 7) // 8, "big")
 
@@ -156,6 +263,7 @@ def _sign_type2(fields: dict[str, object], key: keys.PrivateKey) -> bytes:
 
 def test_real_level3_grant_reaches_durable_signing_boundary_without_broadcast(
     tmp_path,
+    monkeypatch,
 ) -> None:
     signer = RehearsalAuthoritySigner()
     bundle = issue_ink_v0f_grant(
@@ -243,30 +351,82 @@ def test_real_level3_grant_reaches_durable_signing_boundary_without_broadcast(
     assert Capability.SUBMIT_EXACT_BYTES in capabilities
     assert Capability.PRODUCE_SIGNATURE not in capabilities
 
-    calldata = encode_swap_exact_tokens_for_tokens(
-        amount_in_atomic=ENTRY_ATOMIC,
-        amount_out_min_atomic=1,
-        path=(WETH9_ADDRESS, KRAKMASK_ADDRESS),
-        recipient=INK_V0F_TAKER_ADDRESS,
-        deadline_epoch_s=NOW + 600,
+    # Exercise the canonical atomic Ink preauthorization seam without network.
+    # The verifier itself is canonical; only its observation methods are pinned
+    # to deterministic two-provider facts. Any accidental RPC call is fatal.
+    def no_rpc(_payload: bytes) -> bytes:
+        raise AssertionError("zero-money rehearsal must not call an RPC transport")
+
+    router_identity = _router_identity()
+    live = InkV0FLiveVerifier(
+        (
+            JsonRpcClient(INK_RPC_ENDPOINTS[0], transport=no_rpc),
+            JsonRpcClient(INK_RPC_ENDPOINTS[1], transport=no_rpc),
+        ),
+        router_identity,
     )
-    scope = ExactSignedBytesScopeV0(
-        session_id=session.session_id,
-        session_identity_digest=session.identity_digest,
-        economic_action_id=intent.economic_action_id,
-        authority_policy_digest=session.authority_policy_digest,
-        chain_id=INK_CHAIN_ID,
-        taker_address=INK_V0F_TAKER_ADDRESS,
-        target_address=INK_V0F_ROUTER_ADDRESS,
-        min_value_atomic=0,
-        max_value_atomic=0,
-        calldata_sha256=sha256_hex(calldata),
-        calldata_length=len(calldata),
+    market = _market()
+    router_observation = _router_observation()
+    allowance_observation = _allowance_observation()
+    monkeypatch.setattr(live, "observe_market", lambda: market)
+    monkeypatch.setattr(
+        live,
+        "observe_router_for_market",
+        lambda observed: router_observation if observed == market else None,
+    )
+    monkeypatch.setattr(
+        live,
+        "observe_allowance_for_market",
+        lambda observed, *, token_address: (
+            allowance_observation
+            if observed == market and token_address == WETH9_ADDRESS
+            else None
+        ),
+    )
+
+    expected_live = derive_live_ink_v0f_preview(
+        live_verifier=live,
+        policy=_risk_policy(),
+        router_identity=router_identity,
+        ledger=ledger,
+        intent=intent,
+        session=session,
         account_nonce=7,
         gas_limit_ceiling=250_000,
         max_fee_per_gas_ceiling=2_000_000_000,
         max_priority_fee_per_gas_ceiling=100_000_000,
+        constructed_at_epoch_s=NOW + 1,
     )
+    approval, envelope = runtime.record_ink_v0f_preauth_bundle(
+        live_verifier=live,
+        risk_policy=_risk_policy(),
+        router_identity=router_identity,
+        intent=intent,
+        session=session,
+        verified_grant=verified,
+        account_nonce=7,
+        gas_limit_ceiling=250_000,
+        max_fee_per_gas_ceiling=2_000_000_000,
+        max_priority_fee_per_gas_ceiling=100_000_000,
+        constructed_at_epoch_s=NOW + 1,
+        now_epoch_s=NOW + 1,
+    )
+    preview = expected_live.preview
+    assert approval.requested_allowance_atomic == preview.swap.amount_in_atomic
+    assert envelope.envelope_id
+    assert envelope.economic_action_id == intent.economic_action_id
+    assert envelope.calldata_sha256 == sha256_hex(preview.swap.calldata)
+    assert envelope.calldata_length == len(preview.swap.calldata)
+    assert envelope.account_nonce == preview.signed_bytes_scope.account_nonce
+    assert ledger.connection.execute(
+        "SELECT COUNT(*) FROM approval_actions"
+    ).fetchone()[0] == 1
+    assert ledger.connection.execute(
+        "SELECT COUNT(*) FROM execution_envelopes"
+    ).fetchone()[0] == 1
+
+    calldata = preview.swap.calldata
+    scope = preview.signed_bytes_scope
 
     # Deliberately sign with a synthetic non-owner key. The exact-byte path
     # must reach cryptographic signer recovery and fail because the recovered
