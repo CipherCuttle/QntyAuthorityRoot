@@ -169,8 +169,11 @@ def _inspect_epoch6_history(
             ):
                 raise RuntimeError("epoch-6 receipt does not match immutable ledger row")
             _assert_scope(receipt)
-            if previous_not_after is not None and receipt.authority_policy.not_before_epoch_s < previous_not_after:
-                raise RuntimeError("epoch-6 history contains overlapping grants")
+            if (
+                previous_not_after is not None
+                and receipt.authority_policy.not_before_epoch_s < previous_not_after
+            ):
+                raise RuntimeError("epoch-6 history contains overlapping or backdated grants")
             previous_not_after = receipt.authority_policy.not_after_epoch_s
             if str(row["request_id"]) == expected_request_id:
                 if receipt.issued_at_epoch_s != issued_at_epoch_s:
@@ -178,6 +181,14 @@ def _inspect_epoch6_history(
                 if exact is not None:
                     raise RuntimeError("epoch-6 history contains duplicate request id")
                 exact = receipt_bytes
+        if (
+            exact is None
+            and previous_not_after is not None
+            and issued_at_epoch_s < previous_not_after
+        ):
+            raise RuntimeError(
+                "new epoch-6 successor request must start at or after latest receipt expiry"
+            )
     return exact
 
 
