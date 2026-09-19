@@ -37,6 +37,7 @@ jobs:
             tests/test_ink_v0f_dust_risk_policy.py \
             tests/test_ink_v0f_grant.py \
             tests/test_ink_v0f_epoch5_production_issuance.py \
+            tests/test_ink_v0f_epoch6_successor_grants.py \
             tests/test_ink_v0f_production_state_inspector.py \
             tests/test_ink_v0f_taker_binding.py \
             tests/test_ledger.py \
