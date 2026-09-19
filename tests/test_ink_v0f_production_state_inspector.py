@@ -92,8 +92,9 @@ def test_inspector_reports_compatible_empty_production_ledger(tmp_path: Path) ->
     assert result["trust_config_version"] == 1
 
 
-def test_inspector_refuses_active_ink_grant(tmp_path: Path) -> None:
+def test_inspector_refuses_active_ink_grant(tmp_path: Path, monkeypatch) -> None:
     module = _module()
+    monkeypatch.setattr(module, "verify_receipt_signature", lambda receipt, anchor: None)
     root = _root(tmp_path)
     path = _ledger(root)
     policy = AuthorityPolicyRefV0(
