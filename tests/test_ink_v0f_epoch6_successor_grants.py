@@ -15,6 +15,7 @@ from qnty_authority_root import AuthorityGrantReceiptV0, canonical_json_bytes, s
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "issue_ink_v0f_epoch6_successor_grant.py"
 GOVERNANCE = ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_SUCCESSOR_GOVERNANCE_V0.json"
+NATIVE_REBIND = ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_NATIVE_ETH_REBIND_V0.json"
 
 
 def _module():
@@ -82,6 +83,28 @@ def test_epoch6_governance_is_canonical_and_exact() -> None:
     assert doc["renewal_contract"]["new_request_after_prior_expiry"] == "ALLOWED"
 
 
+def test_epoch6_native_eth_rebind_is_canonical_and_exact() -> None:
+    raw = NATIVE_REBIND.read_bytes()
+    doc = json.loads(raw)
+    assert raw == canonical_json_bytes(doc)
+    assert sha256_hex(raw) == "d2db45a9615c06babbf2b1a73564bc78f4060371d281f019c4a3d0987a96e039"
+    assert doc["current_grant_preparation_digest"] == (
+        "6da9c107fdb1e67e1f9284c2065c0254e86d55eaa61af574501dba7c063cb009"
+    )
+    assert doc["exact_grant_scope"]["permitted_repository_commit"] == (
+        "95aaa869f490474968d16f51bfac5ad939a3a074"
+    )
+    assert doc["exact_grant_scope"]["permitted_implementation_digest"] == (
+        "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
+    )
+    assert doc["execution_funding"] == {
+        "buy_wallet_asset": "NATIVE_ETH",
+        "pool_quote_leg": "WETH",
+        "sell_wallet_settlement": "NATIVE_ETH",
+    }
+    assert doc["production_effects"]["authority_receipt_issued_now"] == "NO"
+
+
 def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     module = _module()
     key_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
@@ -115,6 +138,12 @@ def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     )
     assert receipt.issued_at_epoch_s == t
     assert receipt.authority_policy.not_after_epoch_s == t + 900
+    assert receipt.authority_policy.permitted_repository_commit == (
+        "95aaa869f490474968d16f51bfac5ad939a3a074"
+    )
+    assert receipt.authority_policy.permitted_implementation_digest == (
+        "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
+    )
 
 
 def test_epoch6_allows_new_exact_grant_after_expiry(tmp_path: Path, monkeypatch) -> None:
