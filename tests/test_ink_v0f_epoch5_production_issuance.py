@@ -9,7 +9,13 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from qnty_authority_root import AuthorityGrantReceiptV0, canonical_json_bytes, sha256_hex
+from qnty_authority_root import (
+    AuthorityGrantReceiptV0,
+    AuthorityLevel,
+    AuthorityPolicyRefV0,
+    canonical_json_bytes,
+    sha256_hex,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "issue_ink_v0f_epoch5_production_grant.py"
@@ -78,141 +84,19 @@ def test_epoch5_governance_artifact_is_exact_and_forbids_epoch4_reuse() -> None:
     assert doc["epoch_5"]["ledger_relative_path"] == (
         "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
     )
-    assert doc["local_production_preflight"]["active_ink_grants"] == 0
-    assert [row["authority_epoch"] for row in doc["local_production_preflight"]["compatible_ledgers"]] == [1, 2, 4]
+    assert doc["exact_grant_scope"]["permitted_repository_commit"] == (
+        "af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6"
+    )
+    assert doc["exact_grant_scope"]["permitted_implementation_digest"] == (
+        "f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a"
+    )
     assert doc["exact_grant_scope"]["granted_level_numeric"] == 3
     assert doc["exact_grant_scope"]["max_reservation_atomic"] == "1000000000000000"
     assert doc["exact_grant_scope"]["max_cumulative_atomic"] == "1000000000000000"
     assert doc["exact_grant_scope"]["grant_duration_seconds"] == 900
-    assert doc["production_effects"]["authority_receipt_issued"] == "NO"
-    assert doc["production_effects"]["epoch_5_ledger_created"] == "NO"
 
 
-def test_one_shot_epoch5_issuance_is_exact_and_idempotent(tmp_path: Path, monkeypatch) -> None:
-    module = _module()
-    private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
-    root = _production_root(tmp_path, public, trust_bytes)
-
-    monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
-    monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
-    calls = {"count": 0}
-
-    def preflight(root, *, now_epoch_s, allow_active_request_id):
-        calls["count"] += 1
-        if calls["count"] == 1:
-            return {"active_ink_grants": []}
-        return {
-            "active_ink_grants": [
-                {
-                    "authority_epoch": 5,
-                    "relative_path": "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3",
-                    "request_id": allow_active_request_id,
-                }
-            ]
-        }
-
-    monkeypatch.setattr(module, "_run_read_only_preflight", preflight)
-
-    issued_at = 2_000_000_000
-    first = module.issue_once(
-        production_root=root,
-        private_key_path=private_path,
-        issued_at_epoch_s=issued_at,
-    )
-    second = module.issue_once(
-        production_root=root,
-        private_key_path=private_path,
-        issued_at_epoch_s=issued_at,
-    )
-
-    assert first == second
-    assert first["authority_epoch"] == 5
-    assert first["request_id"] == f"ink-v0f-{issued_at}-900"
-    assert first["not_after_epoch_s"] == issued_at + 900
-    db = root / "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
-    assert db.is_file()
-    receipt_path = root / "public/ink-v0f-level3-epoch5-receipt-v0.json"
-    receipt = AuthorityGrantReceiptV0.from_bytes(receipt_path.read_bytes())
-    assert receipt.authority_epoch == 5
-    assert receipt.serial == 1
-    assert receipt.issued_at_epoch_s == issued_at
-    assert int(receipt.authority_policy.granted_level) == 3
-    assert receipt.authority_policy.permitted_repository_commit == (
-        "af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6"
-    )
-    assert receipt.authority_policy.permitted_implementation_digest == (
-        "f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a"
-    )
-    assert receipt.authority_policy.permitted_network_id == "evm:57073"
-    assert receipt.authority_policy.permitted_taker_address == (
-        "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
-    )
-    assert receipt.authority_policy.permitted_venue_id == "inkyswap-v2-ink-mainnet"
-    assert receipt.authority_policy.max_reservation_atomic == 10**15
-    assert receipt.authority_policy.max_cumulative_atomic == 10**15
-
-
-def test_active_ink_preflight_refuses_before_key_access(tmp_path: Path, monkeypatch) -> None:
-    module = _module()
-    private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
-    root = _production_root(tmp_path, public, trust_bytes)
-    monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
-    monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
-    monkeypatch.setattr(
-        module,
-        "_run_read_only_preflight",
-        lambda root, *, now_epoch_s, allow_active_request_id: {
-            "active_ink_grants": [{"receipt_id": "existing"}]
-        },
-    )
-    monkeypatch.setattr(
-        module,
-        "_load_private_key",
-        lambda path: (_ for _ in ()).throw(AssertionError("key must not be read")),
-    )
-
-    with pytest.raises(RuntimeError, match="active Ink grant"):
-        module.issue_once(
-            production_root=root,
-            private_key_path=private_path,
-            issued_at_epoch_s=2_000_000_000,
-        )
-    assert not (root / "state/epoch-5").exists()
-
-
-def test_wrong_private_key_fingerprint_creates_no_epoch5_ledger(tmp_path: Path, monkeypatch) -> None:
-    module = _module()
-    private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
-    root = _production_root(tmp_path, public, trust_bytes)
-    monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
-    monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
-    monkeypatch.setattr(
-        module,
-        "_run_read_only_preflight",
-        lambda root, *, now_epoch_s, allow_active_request_id: {"active_ink_grants": []},
-    )
-
-    wrong = Ed25519PrivateKey.from_private_bytes(hashlib.sha256(b"wrong-key").digest())
-    private_path.write_bytes(
-        wrong.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        )
-    )
-    private_path.chmod(0o600)
-
-    with pytest.raises(RuntimeError, match="does not match provisioned AuthorityRoot fingerprint"):
-        module.issue_once(
-            production_root=root,
-            private_key_path=private_path,
-            issued_at_epoch_s=2_000_000_000,
-        )
-    assert not (root / "state/epoch-5").exists()
-
-
-
-def test_different_issued_at_cannot_append_second_epoch5_grant(
+def test_epoch5_current_rebind_refuses_before_preflight_key_or_ledger(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -224,25 +108,80 @@ def test_different_issued_at_cannot_append_second_epoch5_grant(
     monkeypatch.setattr(
         module,
         "_run_read_only_preflight",
-        lambda root, *, now_epoch_s, allow_active_request_id: {"active_ink_grants": []},
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("superseded epoch-5 lane must refuse before preflight")
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_private_key",
+        lambda path: (_ for _ in ()).throw(
+            AssertionError("superseded epoch-5 lane must refuse before key access")
+        ),
     )
 
-    first_issued_at = 2_000_000_000
-    module.issue_once(
-        production_root=root,
-        private_key_path=private_path,
-        issued_at_epoch_s=first_issued_at,
-    )
-
-    with pytest.raises(RuntimeError, match="different request"):
+    assert module.CURRENT_QNTYSPOT_COMMIT != module.EXPECTED_QNTYSPOT_COMMIT
+    assert module.CURRENT_IMPLEMENTATION_DIGEST != module.EXPECTED_IMPLEMENTATION_DIGEST
+    with pytest.raises(RuntimeError, match="historical-only"):
         module.issue_once(
             production_root=root,
             private_key_path=private_path,
-            issued_at_epoch_s=first_issued_at + 1,
+            issued_at_epoch_s=2_000_000_000,
         )
 
-    import sqlite3
+    assert not (root / "state/epoch-5").exists()
 
-    db = root / "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
-    with sqlite3.connect(db) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM issuances").fetchone()[0] == 1
+
+def test_epoch5_historical_receipt_validator_remains_exact() -> None:
+    module = _module()
+    issued_at = 2_000_000_000
+    policy = AuthorityPolicyRefV0(
+        authority_root_id="qnty-authority-root-v0",
+        granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
+        permitted_repository_commit=module.EXPECTED_QNTYSPOT_COMMIT,
+        permitted_implementation_digest=module.EXPECTED_IMPLEMENTATION_DIGEST,
+        permitted_network_id=module.EXPECTED_NETWORK,
+        permitted_taker_address=module.EXPECTED_TAKER,
+        permitted_venue_id=module.EXPECTED_VENUE,
+        max_reservation_atomic=module.EXPECTED_ATOMIC,
+        max_cumulative_atomic=module.EXPECTED_ATOMIC,
+        not_before_epoch_s=issued_at,
+        not_after_epoch_s=issued_at + module.DURATION_S,
+    )
+    receipt = AuthorityGrantReceiptV0(
+        root_id="qnty-authority-root-v0",
+        public_key_fingerprint="11" * 32,
+        signature_algorithm="Ed25519",
+        authority_epoch=module.AUTHORITY_EPOCH,
+        serial=1,
+        issued_at_epoch_s=issued_at,
+        authority_policy=policy,
+        signature=b"\x00" * 64,
+    )
+    module._assert_exact_receipt(receipt, issued_at_epoch_s=issued_at)
+
+    current_scope = AuthorityPolicyRefV0(
+        authority_root_id=policy.authority_root_id,
+        granted_level=policy.granted_level,
+        permitted_repository_commit=module.CURRENT_QNTYSPOT_COMMIT,
+        permitted_implementation_digest=module.CURRENT_IMPLEMENTATION_DIGEST,
+        permitted_network_id=policy.permitted_network_id,
+        permitted_taker_address=policy.permitted_taker_address,
+        permitted_venue_id=policy.permitted_venue_id,
+        max_reservation_atomic=policy.max_reservation_atomic,
+        max_cumulative_atomic=policy.max_cumulative_atomic,
+        not_before_epoch_s=policy.not_before_epoch_s,
+        not_after_epoch_s=policy.not_after_epoch_s,
+    )
+    current_receipt = AuthorityGrantReceiptV0(
+        root_id=receipt.root_id,
+        public_key_fingerprint=receipt.public_key_fingerprint,
+        signature_algorithm=receipt.signature_algorithm,
+        authority_epoch=receipt.authority_epoch,
+        serial=receipt.serial,
+        issued_at_epoch_s=receipt.issued_at_epoch_s,
+        authority_policy=current_scope,
+        signature=receipt.signature,
+    )
+    with pytest.raises(RuntimeError, match="QntySpot commit mismatch"):
+        module._assert_exact_receipt(current_receipt, issued_at_epoch_s=issued_at)

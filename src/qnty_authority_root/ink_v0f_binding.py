@@ -41,23 +41,34 @@ INK_V0F_LEVEL3_V0_GRANT_PREPARATION_DIGEST = (
     "b0655a0a5e83dd55264a3fc10a5c0be75ae31782b2ab84ee2ebbe54d09f13233"
 )
 
-INK_V0F_GRANT_PREPARATION_SCHEMA = (
+INK_V0F_LEVEL3_V1_GRANT_PREPARATION_SCHEMA = (
     "qnty.authority_root.ink_v0f_level3_grant_preparation.v1"
+)
+INK_V0F_LEVEL3_V1_QNTYSPOT_COMMIT = "af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6"
+INK_V0F_LEVEL3_V1_QNTYSPOT_IMPLEMENTATION_DIGEST = (
+    "f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a"
+)
+INK_V0F_LEVEL3_V1_GRANT_PREPARATION_DIGEST = (
+    "00ab5e8721d4ccd59d2ada0f7574a6b3368f930341cb72d9b8d3c00da865ab3d"
+)
+
+INK_V0F_GRANT_PREPARATION_SCHEMA = (
+    "qnty.authority_root.ink_v0f_level3_grant_preparation.v2"
 )
 INK_V0F_AUTHORITY_ROOT_ID = "qnty-authority-root-v0"
 INK_V0F_REPOSITORY_IDENTITY = "CipherCuttle/QntySpot"
-INK_V0F_QNTYSPOT_COMMIT = "af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6"
+INK_V0F_QNTYSPOT_COMMIT = "95aaa869f490474968d16f51bfac5ad939a3a074"
 INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST = (
-    "f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a"
+    "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
 )
 INK_V0F_TAKER_ADDRESS = "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
 INK_V0F_GRANT_PREPARATION_DIGEST = (
-    "00ab5e8721d4ccd59d2ada0f7574a6b3368f930341cb72d9b8d3c00da865ab3d"
+    "6da9c107fdb1e67e1f9284c2065c0254e86d55eaa61af574501dba7c063cb009"
 )
 
 
 @dataclass(frozen=True, slots=True)
-class InkV0FGrantPreparationV1:
+class InkV0FGrantPreparationV2:
     authority_root_id: str = INK_V0F_AUTHORITY_ROOT_ID
     repository_identity: str = INK_V0F_REPOSITORY_IDENTITY
     permitted_repository_commit: str = INK_V0F_QNTYSPOT_COMMIT
@@ -148,11 +159,12 @@ class InkV0FGrantPreparationV1:
         return digest_object(self.canonical_object())
 
 
-# Backward-compatible import alias for callers that imported the original
-# class name. The current frozen defaults/schema are V1.
-InkV0FGrantPreparationV0 = InkV0FGrantPreparationV1
+# Backward-compatible aliases for callers that imported the original class
+# names. Current issuance is always the V2 frozen tuple above.
+InkV0FGrantPreparationV1 = InkV0FGrantPreparationV2
+InkV0FGrantPreparationV0 = InkV0FGrantPreparationV2
 
-INK_V0F_GRANT_PREPARATION = InkV0FGrantPreparationV1()
+INK_V0F_GRANT_PREPARATION = InkV0FGrantPreparationV2()
 if INK_V0F_GRANT_PREPARATION.preparation_digest != INK_V0F_GRANT_PREPARATION_DIGEST:
     raise RuntimeError("Ink V0F grant preparation digest invariant failed")
 
