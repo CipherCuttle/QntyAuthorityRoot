@@ -95,11 +95,23 @@ def test_one_shot_epoch5_issuance_is_exact_and_idempotent(tmp_path: Path, monkey
 
     monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
     monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
-    monkeypatch.setattr(
-        module,
-        "_run_read_only_preflight",
-        lambda root, *, now_epoch_s: {"active_ink_grants": []},
-    )
+    calls = {"count": 0}
+
+    def preflight(root, *, now_epoch_s, allow_active_request_id):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {"active_ink_grants": []}
+        return {
+            "active_ink_grants": [
+                {
+                    "authority_epoch": 5,
+                    "relative_path": "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3",
+                    "request_id": allow_active_request_id,
+                }
+            ]
+        }
+
+    monkeypatch.setattr(module, "_run_read_only_preflight", preflight)
 
     issued_at = 2_000_000_000
     first = module.issue_once(
@@ -149,7 +161,9 @@ def test_active_ink_preflight_refuses_before_key_access(tmp_path: Path, monkeypa
     monkeypatch.setattr(
         module,
         "_run_read_only_preflight",
-        lambda root, *, now_epoch_s: {"active_ink_grants": [{"receipt_id": "existing"}]},
+        lambda root, *, now_epoch_s, allow_active_request_id: {
+            "active_ink_grants": [{"receipt_id": "existing"}]
+        },
     )
     monkeypatch.setattr(
         module,
@@ -175,7 +189,7 @@ def test_wrong_private_key_fingerprint_creates_no_epoch5_ledger(tmp_path: Path, 
     monkeypatch.setattr(
         module,
         "_run_read_only_preflight",
-        lambda root, *, now_epoch_s: {"active_ink_grants": []},
+        lambda root, *, now_epoch_s, allow_active_request_id: {"active_ink_grants": []},
     )
 
     wrong = Ed25519PrivateKey.from_private_bytes(hashlib.sha256(b"wrong-key").digest())
@@ -195,3 +209,40 @@ def test_wrong_private_key_fingerprint_creates_no_epoch5_ledger(tmp_path: Path, 
             issued_at_epoch_s=2_000_000_000,
         )
     assert not (root / "state/epoch-5").exists()
+
+
+
+def test_different_issued_at_cannot_append_second_epoch5_grant(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _module()
+    private_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
+    root = _production_root(tmp_path, public, trust_bytes)
+    monkeypatch.setattr(module, "EXPECTED_PUBLIC_KEY_FINGERPRINT", fingerprint)
+    monkeypatch.setattr(module, "EXPECTED_TRUST_CONFIG_DIGEST", trust_digest)
+    monkeypatch.setattr(
+        module,
+        "_run_read_only_preflight",
+        lambda root, *, now_epoch_s, allow_active_request_id: {"active_ink_grants": []},
+    )
+
+    first_issued_at = 2_000_000_000
+    module.issue_once(
+        production_root=root,
+        private_key_path=private_path,
+        issued_at_epoch_s=first_issued_at,
+    )
+
+    with pytest.raises(RuntimeError, match="different request"):
+        module.issue_once(
+            production_root=root,
+            private_key_path=private_path,
+            issued_at_epoch_s=first_issued_at + 1,
+        )
+
+    import sqlite3
+
+    db = root / "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
+    with sqlite3.connect(db) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM issuances").fetchone()[0] == 1
