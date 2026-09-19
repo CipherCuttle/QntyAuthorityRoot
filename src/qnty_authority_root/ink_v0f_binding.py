@@ -30,23 +30,34 @@ INK_V0F_HISTORICAL_GRANT_PREPARATION_DIGEST = (
     "de565373e0e7630f72cc4e86e6ce8104aff618b76720b6c2c0f72ea8a16867a8"
 )
 
-INK_V0F_GRANT_PREPARATION_SCHEMA = (
+INK_V0F_LEVEL3_V0_GRANT_PREPARATION_SCHEMA = (
     "qnty.authority_root.ink_v0f_level3_grant_preparation.v0"
+)
+INK_V0F_LEVEL3_V0_QNTYSPOT_COMMIT = "79d66648b80173f71c2e5a3b307984d525edf479"
+INK_V0F_LEVEL3_V0_QNTYSPOT_IMPLEMENTATION_DIGEST = (
+    "ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea"
+)
+INK_V0F_LEVEL3_V0_GRANT_PREPARATION_DIGEST = (
+    "b0655a0a5e83dd55264a3fc10a5c0be75ae31782b2ab84ee2ebbe54d09f13233"
+)
+
+INK_V0F_GRANT_PREPARATION_SCHEMA = (
+    "qnty.authority_root.ink_v0f_level3_grant_preparation.v1"
 )
 INK_V0F_AUTHORITY_ROOT_ID = "qnty-authority-root-v0"
 INK_V0F_REPOSITORY_IDENTITY = "CipherCuttle/QntySpot"
-INK_V0F_QNTYSPOT_COMMIT = "79d66648b80173f71c2e5a3b307984d525edf479"
+INK_V0F_QNTYSPOT_COMMIT = "af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6"
 INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST = (
-    "ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea"
+    "f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a"
 )
 INK_V0F_TAKER_ADDRESS = "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
 INK_V0F_GRANT_PREPARATION_DIGEST = (
-    "b0655a0a5e83dd55264a3fc10a5c0be75ae31782b2ab84ee2ebbe54d09f13233"
+    "00ab5e8721d4ccd59d2ada0f7574a6b3368f930341cb72d9b8d3c00da865ab3d"
 )
 
 
 @dataclass(frozen=True, slots=True)
-class InkV0FGrantPreparationV0:
+class InkV0FGrantPreparationV1:
     authority_root_id: str = INK_V0F_AUTHORITY_ROOT_ID
     repository_identity: str = INK_V0F_REPOSITORY_IDENTITY
     permitted_repository_commit: str = INK_V0F_QNTYSPOT_COMMIT
@@ -137,7 +148,11 @@ class InkV0FGrantPreparationV0:
         return digest_object(self.canonical_object())
 
 
-INK_V0F_GRANT_PREPARATION = InkV0FGrantPreparationV0()
+# Backward-compatible import alias for callers that imported the original
+# class name. The current frozen defaults/schema are V1.
+InkV0FGrantPreparationV0 = InkV0FGrantPreparationV1
+
+INK_V0F_GRANT_PREPARATION = InkV0FGrantPreparationV1()
 if INK_V0F_GRANT_PREPARATION.preparation_digest != INK_V0F_GRANT_PREPARATION_DIGEST:
     raise RuntimeError("Ink V0F grant preparation digest invariant failed")
 

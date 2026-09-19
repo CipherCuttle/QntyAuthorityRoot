@@ -19,6 +19,7 @@ from .ink_v0f_binding import (
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_TAKER_ADDRESS,
     InkV0FGrantPreparationV0,
+    InkV0FGrantPreparationV1,
     assert_ink_v0f_exact_authority_binding,
 )
 from .ink_v0f_grant import (
@@ -75,6 +76,7 @@ __all__ = [
     "INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST",
     "INK_V0F_TAKER_ADDRESS",
     "InkV0FGrantPreparationV0",
+    "InkV0FGrantPreparationV1",
     "INK_V0F_DUST_RISK_POLICY_DIGEST",
     "InkV0FDustRiskPolicyV0",
     "ED25519_SIGNATURE_ALGORITHM",

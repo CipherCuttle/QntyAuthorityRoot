@@ -64,8 +64,9 @@ The current Ink dust-live grant preparation is bound to one exact public taker
 and the merged QntySpot Level-3 runtime identity. This preparation is not a
 signed grant and gives no authority by itself.
 
-The original `artifacts/INK_V0F_GRANT_PREPARATION_V0.json` remains immutable
-historical evidence. It is not the current issuable tuple.
+Both `artifacts/INK_V0F_GRANT_PREPARATION_V0.json` and
+`artifacts/INK_V0F_LEVEL3_GRANT_PREPARATION_V0.json` remain immutable
+historical evidence. Neither is the current issuable tuple.
 
 Canonical taker:
 
@@ -73,19 +74,19 @@ Canonical taker:
 
 QntySpot canonical Level-3 merge:
 
-`79d66648b80173f71c2e5a3b307984d525edf479`
+`af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6`
 
 QntySpot implementation digest:
 
-`ac408e3c0ccfdac8106b3c5aef44904e07504112aacc49a2097affdd3e025aea`
+`f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a`
 
 Current preparation artifact:
 
-`artifacts/INK_V0F_LEVEL3_GRANT_PREPARATION_V0.json`
+`artifacts/INK_V0F_LEVEL3_GRANT_PREPARATION_V1.json`
 
 Current preparation digest:
 
-`b0655a0a5e83dd55264a3fc10a5c0be75ae31782b2ab84ee2ebbe54d09f13233`
+`00ab5e8721d4ccd59d2ada0f7574a6b3368f930341cb72d9b8d3c00da865ab3d`
 
 For Ink V0F, the issuer rejects a different taker, QntySpot commit,
 implementation digest, venue, network, authority level, or capital envelope
