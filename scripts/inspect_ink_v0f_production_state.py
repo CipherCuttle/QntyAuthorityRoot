@@ -12,6 +12,7 @@ from qnty_authority_root import (
     AuthorityGrantReceiptV0,
     sha256_hex,
     strict_json_loads,
+    verify_receipt_signature,
 )
 
 EXPECTED_PUBLIC_KEY_FINGERPRINT = (
@@ -52,6 +53,16 @@ def inspect_production_root(production_root: Path, *, now_epoch_s: int) -> dict[
     trust = strict_json_loads(trust_bytes)
     if not isinstance(trust, dict):
         raise RuntimeError("production authority trust config is not a JSON object")
+    expected_trust = {
+        "minimum_authority_epoch": 1,
+        "public_key_fingerprint": EXPECTED_PUBLIC_KEY_FINGERPRINT,
+        "root_id": "qnty-authority-root-v0",
+        "schema": "qntyspot.authority_root.v0.trust_config",
+        "signature_algorithm": "Ed25519",
+        "trust_config_version": 1,
+    }
+    if trust != expected_trust:
+        raise RuntimeError("production authority trust config content mismatch")
 
     state_dir = root / "state"
     ledger_paths = sorted(state_dir.rglob("*.sqlite3")) if state_dir.is_dir() else []
@@ -87,6 +98,7 @@ def inspect_production_root(production_root: Path, *, now_epoch_s: int) -> dict[
 
             ledger_info = {
                 "authority_epoch": int(metadata["authority_epoch"]),
+                "root_id": str(metadata["root_id"]),
                 "issuance_count": len(rows),
                 "minimum_authority_epoch": int(metadata["minimum_authority_epoch"]),
                 "public_key_fingerprint": str(metadata["public_key_fingerprint"]),
@@ -99,6 +111,15 @@ def inspect_production_root(production_root: Path, *, now_epoch_s: int) -> dict[
 
             for row in rows:
                 receipt = AuthorityGrantReceiptV0.from_bytes(bytes(row["receipt_bytes"]))
+                verify_receipt_signature(receipt, anchor)
+                if (
+                    receipt.authority_epoch != int(row["authority_epoch"])
+                    or receipt.serial != int(row["serial"])
+                    or receipt.receipt_id != str(row["receipt_id"])
+                ):
+                    raise RuntimeError(
+                        f"ledger receipt row binding mismatch: {relative}"
+                    )
                 policy = receipt.authority_policy
                 if (
                     policy.permitted_network_id == INK_NETWORK_ID
@@ -119,8 +140,11 @@ def inspect_production_root(production_root: Path, *, now_epoch_s: int) -> dict[
     compatible = [
         row
         for row in ledgers
-        if row["public_key_fingerprint"] == EXPECTED_PUBLIC_KEY_FINGERPRINT
+        if row["root_id"] == "qnty-authority-root-v0"
+        and row["public_key_fingerprint"] == EXPECTED_PUBLIC_KEY_FINGERPRINT
         and row["trust_config_digest"] == EXPECTED_TRUST_CONFIG_DIGEST
+        and row["trust_config_version"] == 1
+        and row["minimum_authority_epoch"] == 1
         and row["repository_identity"] == "CipherCuttle/QntySpot"
     ]
 
