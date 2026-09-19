@@ -31,7 +31,12 @@ def _read_only_connection(path: Path) -> sqlite3.Connection:
     return connection
 
 
-def inspect_production_root(production_root: Path, *, now_epoch_s: int) -> dict[str, Any]:
+def inspect_production_root(
+    production_root: Path,
+    *,
+    now_epoch_s: int,
+    allow_active_request_id: str | None = None,
+) -> dict[str, Any]:
     root = production_root.resolve()
     if not root.is_dir():
         raise RuntimeError("production root is not an existing directory")
@@ -160,9 +165,18 @@ def inspect_production_root(production_root: Path, *, now_epoch_s: int) -> dict[
         "trust_config_version": trust.get("trust_config_version"),
     }
     if active_ink:
-        raise RuntimeError(
-            "an active Ink V0F authority grant already exists; refusing grant preparation"
+        exact_recovery = (
+            allow_active_request_id is not None
+            and len(active_ink) == 1
+            and active_ink[0]["request_id"] == allow_active_request_id
+            and active_ink[0]["relative_path"]
+            == "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
+            and active_ink[0]["authority_epoch"] == 5
         )
+        if not exact_recovery:
+            raise RuntimeError(
+                "an active Ink V0F authority grant already exists; refusing grant preparation"
+            )
     if not compatible:
         raise RuntimeError("no compatible production authority ledger was found")
     return result
