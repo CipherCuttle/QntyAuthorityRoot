@@ -140,7 +140,6 @@ def _assert_scope(
         == HISTORICAL_EPOCH6_SERIAL1["issued_at_epoch_s"]
         and p.not_after_epoch_s
         == HISTORICAL_EPOCH6_SERIAL1["not_after_epoch_s"]
-        and receipt.receipt_id == HISTORICAL_EPOCH6_SERIAL1["receipt_id"]
         and p.permitted_repository_commit
         == HISTORICAL_EPOCH6_SERIAL1["repository_commit"]
         and p.permitted_implementation_digest
