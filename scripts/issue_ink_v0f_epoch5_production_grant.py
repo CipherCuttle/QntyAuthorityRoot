@@ -80,6 +80,10 @@ def _run_read_only_preflight(
         root,
         now_epoch_s=now_epoch_s,
         allow_active_request_id=allow_active_request_id,
+        allow_active_authority_epoch=AUTHORITY_EPOCH,
+        allow_active_relative_path=(
+            "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
+        ),
     )
 
 
