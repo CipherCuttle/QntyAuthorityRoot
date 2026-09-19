@@ -18,6 +18,10 @@ from qnty_authority_root import (
     sha256_hex,
     verify_receipt_signature,
 )
+from qnty_authority_root.ink_v0f_binding import (
+    INK_V0F_QNTYSPOT_COMMIT,
+    INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
+)
 from qnty_authority_root.ink_v0f_grant import (
     ink_v0f_request_id,
     issue_ink_v0f_grant,
@@ -42,6 +46,8 @@ EXPECTED_TAKER = "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
 EXPECTED_NETWORK = "evm:57073"
 EXPECTED_VENUE = "inkyswap-v2-ink-mainnet"
 EXPECTED_ATOMIC = 10**15
+CURRENT_QNTYSPOT_COMMIT = INK_V0F_QNTYSPOT_COMMIT
+CURRENT_IMPLEMENTATION_DIGEST = INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST
 
 RECEIPT_NAME = "ink-v0f-level3-epoch5-receipt-v0.json"
 RECEIPT_SIDECAR_NAME = "ink-v0f-level3-epoch5-receipt-v0.sha256"
@@ -85,6 +91,17 @@ def _run_read_only_preflight(
             "state/epoch-5/authority-root-issuance-v0-epoch-5.sqlite3"
         ),
     )
+
+
+def _assert_epoch5_lane_not_superseded() -> None:
+    if (
+        CURRENT_QNTYSPOT_COMMIT != EXPECTED_QNTYSPOT_COMMIT
+        or CURRENT_IMPLEMENTATION_DIGEST != EXPECTED_IMPLEMENTATION_DIGEST
+    ):
+        raise RuntimeError(
+            "epoch-5 production issuance is historical-only after AuthorityRoot rebind; "
+            "use the reviewed epoch-6 successor lane"
+        )
 
 
 def _load_private_key(path: Path) -> FileEd25519Signer:
@@ -251,6 +268,11 @@ def issue_once(
         raise RuntimeError("public AuthorityRoot fingerprint mismatch")
     if sha256_hex(trust_path.read_bytes()) != EXPECTED_TRUST_CONFIG_DIGEST:
         raise RuntimeError("public AuthorityRoot trust-config digest mismatch")
+
+    # Epoch 5 was issued against the previous QntySpot identity. Once the
+    # canonical AuthorityRoot binding advances, this script must fail before
+    # preflight, key access, database creation, or any issuance attempt.
+    _assert_epoch5_lane_not_superseded()
 
     expected_request_id = ink_v0f_request_id(
         issued_at_epoch_s=issued_at_epoch_s,
