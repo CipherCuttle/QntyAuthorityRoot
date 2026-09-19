@@ -18,6 +18,10 @@ from qnty_authority_root import (
     sha256_hex,
     verify_receipt_signature,
 )
+from qnty_authority_root.ink_v0f_binding import (
+    INK_V0F_QNTYSPOT_COMMIT,
+    INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
+)
 from qnty_authority_root.ink_v0f_grant import (
     ink_v0f_request_id,
     issue_ink_v0f_grant,
@@ -29,8 +33,8 @@ AUTHORITY_EPOCH = 6
 MINIMUM_AUTHORITY_EPOCH = 1
 TRUST_CONFIG_VERSION = 1
 DURATION_S = 900
-EXPECTED_QNTYSPOT_COMMIT = "af5edb2eaf9e6ab55a8295da4a9cb5f2e7d549b6"
-EXPECTED_IMPLEMENTATION_DIGEST = "f0f3dfb14ddc5be1b2b500fdd4bf134f37dc63c56116e8be39a5496b95db707a"
+EXPECTED_QNTYSPOT_COMMIT = INK_V0F_QNTYSPOT_COMMIT
+EXPECTED_IMPLEMENTATION_DIGEST = INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST
 EXPECTED_TAKER = "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
 EXPECTED_NETWORK = "evm:57073"
 EXPECTED_VENUE = "inkyswap-v2-ink-mainnet"
@@ -295,7 +299,7 @@ def issue_once(
         "receipt_id": receipt.receipt_id,
         "receipt_sha256": digest,
         "request_id": request_id,
-        "schema": "qnty.authority_root.ink_v0f_level3_epoch6_successor_issuance.v0",
+        "schema": "qnty.authority_root.ink_v0f_level3_epoch6_native_eth_issuance.v0",
         "serial": receipt.serial,
         "trust_config_digest": bundle.trust_config_digest,
     }
