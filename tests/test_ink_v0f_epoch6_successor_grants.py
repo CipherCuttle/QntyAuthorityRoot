@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from qnty_authority_root import (
     AuthorityGrantReceiptV0,
+    AuthorityIssuanceRequestV0,
     AuthorityLevel,
     AuthorityPolicyRefV0,
     canonical_json_bytes,
@@ -186,6 +187,64 @@ def test_epoch6_scope_accepts_only_exact_historical_serial1_when_requested() -> 
             ),
             allow_historical_serial1=True,
         )
+
+
+def test_epoch6_historical_validator_allows_only_real_v2_request_tuple() -> None:
+    module = _module()
+    policy = AuthorityPolicyRefV0(
+        authority_root_id="qnty-authority-root-v0",
+        granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
+        permitted_repository_commit="95aaa869f490474968d16f51bfac5ad939a3a074",
+        permitted_implementation_digest=(
+            "b841661bde3b438e15f8709d82feb39de72ba96802c921837eb55a521d80811f"
+        ),
+        permitted_network_id="evm:57073",
+        permitted_taker_address="0x3e604be3293d930069d0805e85379e0ca5fa01cb",
+        permitted_venue_id="inkyswap-v2-ink-mainnet",
+        max_reservation_atomic=10**15,
+        max_cumulative_atomic=10**15,
+        not_before_epoch_s=1789848200,
+        not_after_epoch_s=1789849100,
+    )
+    request = AuthorityIssuanceRequestV0(
+        repository_identity="CipherCuttle/QntySpot",
+        authority_policy=policy,
+        issued_at_epoch_s=1789848200,
+    )
+    receipt = AuthorityGrantReceiptV0(
+        root_id="qnty-authority-root-v0",
+        public_key_fingerprint="11" * 32,
+        signature_algorithm="Ed25519",
+        authority_epoch=6,
+        serial=1,
+        issued_at_epoch_s=1789848200,
+        authority_policy=policy,
+        signature=b"\x01" * 64,
+    )
+    assert module._allow_exact_historical_epoch6_request(
+        "ink-v0f-1789848200-900",
+        request,
+        receipt,
+    )
+    assert not module._allow_exact_historical_epoch6_request(
+        "ink-v0f-1789848201-900",
+        request,
+        receipt,
+    )
+    assert not module._allow_exact_historical_epoch6_request(
+        "ink-v0f-1789848200-900",
+        request,
+        AuthorityGrantReceiptV0(
+            root_id=receipt.root_id,
+            public_key_fingerprint=receipt.public_key_fingerprint,
+            signature_algorithm=receipt.signature_algorithm,
+            authority_epoch=6,
+            serial=2,
+            issued_at_epoch_s=receipt.issued_at_epoch_s,
+            authority_policy=policy,
+            signature=receipt.signature,
+        ),
+    )
 
 
 def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
