@@ -29,6 +29,9 @@ RECONCILE_REBIND = (
 DURABLE_ENVELOPE_REBIND = (
     ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_DURABLE_ENVELOPE_REBIND_V0.json"
 )
+EXPIRED_RECOVERY_REBIND = (
+    ROOT / "artifacts" / "INK_V0F_LEVEL3_EPOCH6_EXPIRED_RECOVERY_REBIND_V0.json"
+)
 
 
 def _module():
@@ -159,6 +162,39 @@ def test_epoch6_durable_envelope_rebind_is_canonical_and_exact() -> None:
     )
     assert doc["previous_grant_preparation"]["digest"] == (
         "45420e0863b97248c21420ba2df295be115955c9e9955f62ef0d36baf5dbb584"
+    )
+    assert doc["production_effects"] == {
+        "authority_receipt_issued_now": "NO",
+        "broadcast": "NO",
+        "capital_moved": "NO",
+        "wallet_signature": "NO",
+    }
+
+
+def test_epoch6_expired_recovery_rebind_is_canonical_and_exact() -> None:
+    raw = EXPIRED_RECOVERY_REBIND.read_bytes()
+    doc = json.loads(raw)
+    assert raw == canonical_json_bytes(doc)
+    assert sha256_hex(raw) == "9ec85b2101aa609b66f7402675471c8db406f58634b4ef3a01c8d0c55b817ff4"
+    assert doc["current_grant_preparation_digest"] == (
+        "79f2c2c83091fcf883fc3447645108a44520d6aa12e3b7c701f5f4b11c3625b7"
+    )
+    assert doc["exact_grant_scope"]["permitted_repository_commit"] == (
+        "b25fa90a7fc0aa3304f17907b354cbab40c11ce3"
+    )
+    assert doc["exact_grant_scope"]["permitted_implementation_digest"] == (
+        "3412d290f5ff0a3b1ae1915f071a503fccd9c5e386e7d4ef0335c9079c4c0e21"
+    )
+    assert doc["previous_grant_preparation"] == {
+        "digest": "b09c2839938bee7f42b612d19be34016ac10979d0f154330777ea75e3ab48abf",
+        "permitted_implementation_digest": (
+            "0eebedcd5028ada31899dde2794fc783970df13e461dfd85353ed61c22aa4e8d"
+        ),
+        "permitted_repository_commit": "928b110ee9e5202d411487ee1ede52a022e097c0",
+        "status": "SUPERSEDED_FOR_NEW_ISSUANCE",
+    }
+    assert doc["historical_epoch6_serial_1"]["receipt_id"] == (
+        "ead512e27a4f49b09f26de3ef42419941e35b1a171d082096ab53a5521c2fcc7"
     )
     assert doc["production_effects"] == {
         "authority_receipt_issued_now": "NO",
@@ -309,10 +345,10 @@ def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     assert receipt.issued_at_epoch_s == t
     assert receipt.authority_policy.not_after_epoch_s == t + 900
     assert receipt.authority_policy.permitted_repository_commit == (
-        "928b110ee9e5202d411487ee1ede52a022e097c0"
+        "b25fa90a7fc0aa3304f17907b354cbab40c11ce3"
     )
     assert receipt.authority_policy.permitted_implementation_digest == (
-        "0eebedcd5028ada31899dde2794fc783970df13e461dfd85353ed61c22aa4e8d"
+        "3412d290f5ff0a3b1ae1915f071a503fccd9c5e386e7d4ef0335c9079c4c0e21"
     )
 
 
