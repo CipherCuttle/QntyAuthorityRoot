@@ -180,10 +180,10 @@ def test_epoch6_expired_recovery_rebind_is_canonical_and_exact() -> None:
         "79f2c2c83091fcf883fc3447645108a44520d6aa12e3b7c701f5f4b11c3625b7"
     )
     assert doc["exact_grant_scope"]["permitted_repository_commit"] == (
-        "08cafd75f9e874a19a85389eb7d0bc76c55df517"
+        "b25fa90a7fc0aa3304f17907b354cbab40c11ce3"
     )
     assert doc["exact_grant_scope"]["permitted_implementation_digest"] == (
-        "53097e1103482aa42dbe9e426967d500f42d3ac2b1b289a176dd74f68be68fa5"
+        "3412d290f5ff0a3b1ae1915f071a503fccd9c5e386e7d4ef0335c9079c4c0e21"
     )
     assert doc["previous_grant_preparation"] == {
         "digest": "b09c2839938bee7f42b612d19be34016ac10979d0f154330777ea75e3ab48abf",
@@ -345,10 +345,10 @@ def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     assert receipt.issued_at_epoch_s == t
     assert receipt.authority_policy.not_after_epoch_s == t + 900
     assert receipt.authority_policy.permitted_repository_commit == (
-        "b25fa90a7fc0aa3304f17907b354cbab40c11ce3"
+        "08cafd75f9e874a19a85389eb7d0bc76c55df517"
     )
     assert receipt.authority_policy.permitted_implementation_digest == (
-        "3412d290f5ff0a3b1ae1915f071a503fccd9c5e386e7d4ef0335c9079c4c0e21"
+        "53097e1103482aa42dbe9e426967d500f42d3ac2b1b289a176dd74f68be68fa5"
     )
 
 
