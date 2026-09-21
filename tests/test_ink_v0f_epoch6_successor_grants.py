@@ -277,7 +277,7 @@ def test_epoch6_scope_accepts_expired_superseded_identity_for_history_only() -> 
         serial=2,
         issued_at_epoch_s=2_000_000_000,
         authority_policy=policy,
-        signature=b"\\x01" * 64,
+        signature=bytes([1]) * 64,
     )
 
     assert module._assert_scope(
