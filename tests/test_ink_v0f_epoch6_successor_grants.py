@@ -253,6 +253,48 @@ def test_epoch6_scope_accepts_only_exact_historical_serial1_when_requested() -> 
         )
 
 
+
+def test_epoch6_scope_accepts_expired_superseded_identity_for_history_only() -> None:
+    module = _module()
+    policy = AuthorityPolicyRefV0(
+        authority_root_id="qnty-authority-root-v0",
+        granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
+        permitted_repository_commit="11" * 20,
+        permitted_implementation_digest="22" * 32,
+        permitted_network_id="evm:57073",
+        permitted_taker_address="0x3e604be3293d930069d0805e85379e0ca5fa01cb",
+        permitted_venue_id="inkyswap-v2-ink-mainnet",
+        max_reservation_atomic=10**15,
+        max_cumulative_atomic=10**15,
+        not_before_epoch_s=2_000_000_000,
+        not_after_epoch_s=2_000_000_900,
+    )
+    receipt = AuthorityGrantReceiptV0(
+        root_id="qnty-authority-root-v0",
+        public_key_fingerprint="11" * 32,
+        signature_algorithm="Ed25519",
+        authority_epoch=6,
+        serial=2,
+        issued_at_epoch_s=2_000_000_000,
+        authority_policy=policy,
+        signature=b"\\x01" * 64,
+    )
+
+    assert module._assert_scope(
+        receipt,
+        allow_expired_historical_before_epoch_s=2_000_000_900,
+    ) == "HISTORICAL_EXPIRED"
+
+    with pytest.raises(RuntimeError, match="QntySpot commit mismatch"):
+        module._assert_scope(receipt)
+
+    with pytest.raises(RuntimeError, match="QntySpot commit mismatch"):
+        module._assert_scope(
+            receipt,
+            allow_expired_historical_before_epoch_s=2_000_000_899,
+        )
+
+
 def test_epoch6_historical_validator_allows_only_real_v2_request_tuple() -> None:
     module = _module()
     policy = AuthorityPolicyRefV0(
