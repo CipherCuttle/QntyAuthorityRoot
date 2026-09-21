@@ -189,6 +189,47 @@ def _allow_exact_historical_epoch6_request(
     )
 
 
+def _allow_expired_historical_epoch6_request(
+    request_id: str,
+    request: object,
+    receipt: AuthorityGrantReceiptV0,
+    *,
+    successor_not_before_epoch_s: int,
+) -> bool:
+    if not hasattr(request, "authority_policy") or not hasattr(request, "issued_at_epoch_s"):
+        return False
+    if not hasattr(request, "repository_identity"):
+        return False
+    policy = request.authority_policy
+    issued_at = request.issued_at_epoch_s
+    if type(issued_at) is not int or issued_at < 0:
+        return False
+    try:
+        expected_request_id = ink_v0f_request_id(
+            issued_at_epoch_s=issued_at,
+            duration_s=DURATION_S,
+        )
+    except Exception:
+        return False
+    return bool(
+        request_id == expected_request_id
+        and request.repository_identity == "CipherCuttle/QntySpot"
+        and receipt.authority_epoch == AUTHORITY_EPOCH
+        and receipt.issued_at_epoch_s == issued_at
+        and receipt.authority_policy == policy
+        and policy.authority_root_id == "qnty-authority-root-v0"
+        and policy.not_before_epoch_s == issued_at
+        and policy.not_after_epoch_s == issued_at + DURATION_S
+        and policy.not_after_epoch_s <= successor_not_before_epoch_s
+        and policy.permitted_taker_address == EXPECTED_TAKER
+        and policy.permitted_network_id == EXPECTED_NETWORK
+        and policy.permitted_venue_id == EXPECTED_VENUE
+        and policy.max_reservation_atomic == EXPECTED_ATOMIC
+        and policy.max_cumulative_atomic == EXPECTED_ATOMIC
+        and int(policy.granted_level) == 3
+    )
+
+
 def _inspect_epoch6_history(
     root: Path,
     *,
@@ -350,7 +391,14 @@ def issue_once(
         trust_config_version=TRUST_CONFIG_VERSION,
         issued_at_epoch_s=issued_at_epoch_s,
         duration_s=DURATION_S,
-        historical_request_validator=_allow_exact_historical_epoch6_request,
+        historical_request_validator=lambda historical_request_id, historical_request, historical_receipt: (
+            _allow_expired_historical_epoch6_request(
+                historical_request_id,
+                historical_request,
+                historical_receipt,
+                successor_not_before_epoch_s=issued_at_epoch_s,
+            )
+        ),
     )
     if bundle.trust_config_digest != EXPECTED_TRUST_CONFIG_DIGEST or bundle.public_anchor_bytes != anchor:
         raise RuntimeError("issued bundle trust continuity mismatch")
