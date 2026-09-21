@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: CipherCuttle/QntySpot
-          ref: b25fa90a7fc0aa3304f17907b354cbab40c11ce3
+          ref: 08cafd75f9e874a19a85389eb7d0bc76c55df517
           fetch-depth: 0
           path: QntySpot
       - uses: actions/setup-python@v5
@@ -55,7 +55,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: CipherCuttle/QntySpot
-          ref: b25fa90a7fc0aa3304f17907b354cbab40c11ce3
+          ref: 08cafd75f9e874a19a85389eb7d0bc76c55df517
           path: qntyspot
       - uses: actions/setup-python@v5
         with:
@@ -68,13 +68,13 @@ jobs:
         run: |
           python qntyspot/scripts/derive_deployment_identity.py \
             --root qntyspot \
-            --repository-commit b25fa90a7fc0aa3304f17907b354cbab40c11ce3 \
+            --repository-commit 08cafd75f9e874a19a85389eb7d0bc76c55df517 \
             --output /tmp/qntyspot-identity.json
           python - <<'PY'
           import json
           from pathlib import Path
           artifact = json.loads(Path("/tmp/qntyspot-identity.json").read_text())
-          expected = "3412d290f5ff0a3b1ae1915f071a503fccd9c5e386e7d4ef0335c9079c4c0e21"
+          expected = "53097e1103482aa42dbe9e426967d500f42d3ac2b1b289a176dd74f68be68fa5"
           assert artifact["implementation_digest"] == expected, artifact["implementation_digest"]
           PY
       - name: Run zero-money cross-repo qualifications
