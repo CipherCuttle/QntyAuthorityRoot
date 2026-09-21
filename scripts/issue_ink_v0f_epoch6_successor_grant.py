@@ -107,6 +107,7 @@ def _assert_scope(
     receipt: AuthorityGrantReceiptV0,
     *,
     allow_historical_serial1: bool = False,
+    allow_expired_historical_before_epoch_s: int | None = None,
 ) -> str:
     p = receipt.authority_policy
     if receipt.authority_epoch != AUTHORITY_EPOCH:
@@ -147,6 +148,12 @@ def _assert_scope(
     )
     if historical:
         return "HISTORICAL_SERIAL1"
+
+    if (
+        allow_expired_historical_before_epoch_s is not None
+        and p.not_after_epoch_s <= allow_expired_historical_before_epoch_s
+    ):
+        return "HISTORICAL_EXPIRED"
 
     if p.permitted_repository_commit != EXPECTED_QNTYSPOT_COMMIT:
         raise RuntimeError("receipt QntySpot commit mismatch")
@@ -238,6 +245,7 @@ def _inspect_epoch6_history(
             scope_kind = _assert_scope(
                 receipt,
                 allow_historical_serial1=True,
+                allow_expired_historical_before_epoch_s=issued_at_epoch_s,
             )
             if (
                 previous_not_after is not None
