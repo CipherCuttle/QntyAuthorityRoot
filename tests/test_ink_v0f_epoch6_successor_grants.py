@@ -345,10 +345,10 @@ def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     assert receipt.issued_at_epoch_s == t
     assert receipt.authority_policy.not_after_epoch_s == t + 900
     assert receipt.authority_policy.permitted_repository_commit == (
-        "08cafd75f9e874a19a85389eb7d0bc76c55df517"
+        "4973ceaecb204afa84b8655f2e8afef498296efb"
     )
     assert receipt.authority_policy.permitted_implementation_digest == (
-        "53097e1103482aa42dbe9e426967d500f42d3ac2b1b289a176dd74f68be68fa5"
+        "7a5d7d8e64b4837426f6bf61fadd41ba7eba0360bb58dd38f93abb0132816cdd"
     )
 
 
