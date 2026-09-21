@@ -13,6 +13,12 @@ from qnty_authority_root import (
     IssuancePolicyError,
 )
 from qnty_authority_root.ink_v0f_binding import (
+    INK_V0F_GRANT_PREPARATION,
+    INK_V0F_GRANT_PREPARATION_DIGEST,
+    INK_V0F_LEVEL3_V5_GRANT_PREPARATION_DIGEST,
+    INK_V0F_LEVEL3_V5_GRANT_PREPARATION_SCHEMA,
+    INK_V0F_LEVEL3_V5_QNTYSPOT_COMMIT,
+    INK_V0F_LEVEL3_V5_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_TAKER_ADDRESS,
@@ -36,6 +42,31 @@ class EphemeralTestSigner:
 
     def sign(self, message: bytes) -> bytes:
         return self._key.sign(message)
+
+
+def test_v6_binding_advances_only_qntyspot_identity_and_preserves_v5_history() -> None:
+    assert INK_V0F_LEVEL3_V5_GRANT_PREPARATION_SCHEMA.endswith(".v5")
+    assert INK_V0F_LEVEL3_V5_QNTYSPOT_COMMIT == (
+        "b25fa90a7fc0aa3304f17907b354cbab40c11ce3"
+    )
+    assert INK_V0F_LEVEL3_V5_QNTYSPOT_IMPLEMENTATION_DIGEST == (
+        "3412d290f5ff0a3b1ae1915f071a503fccd9c5e386e7d4ef0335c9079c4c0e21"
+    )
+    assert INK_V0F_LEVEL3_V5_GRANT_PREPARATION_DIGEST == (
+        "79f2c2c83091fcf883fc3447645108a44520d6aa12e3b7c701f5f4b11c3625b7"
+    )
+
+    assert INK_V0F_QNTYSPOT_COMMIT == "08cafd75f9e874a19a85389eb7d0bc76c55df517"
+    assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
+        "53097e1103482aa42dbe9e426967d500f42d3ac2b1b289a176dd74f68be68fa5"
+    )
+    assert INK_V0F_GRANT_PREPARATION.schema.endswith(".v6")
+    assert INK_V0F_GRANT_PREPARATION_DIGEST == (
+        "29b287b461de164dcfb895b2c5846709eb90c502f2f53abb631b4db0b4e8aafb"
+    )
+    assert INK_V0F_GRANT_PREPARATION.preparation_digest == (
+        INK_V0F_GRANT_PREPARATION_DIGEST
+    )
 
 
 def test_request_builder_uses_only_the_frozen_first_grant_tuple() -> None:
