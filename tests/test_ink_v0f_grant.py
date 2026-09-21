@@ -51,24 +51,23 @@ def test_v9_binding_advances_only_qntyspot_identity_and_preserves_v8_history() -
         "05c11fee96fdcbf392e4a90b78f8e0207a96ac58"
     )
     assert INK_V0F_LEVEL3_V8_QNTYSPOT_IMPLEMENTATION_DIGEST == (
-        "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
+        "eccb92637e9f496b65efd8baeabf35c9d4828474d3ee95da69b93b81af968990"
     )
     assert INK_V0F_LEVEL3_V8_GRANT_PREPARATION_DIGEST == (
-        "8437e963680952795073a90773845cfbd7ba3b053c5268e2310d16996cd06b15"
+        "18903624f8f78b55859cdada4a2b8255f22673f428a019172abe2c8bd9706459"
     )
 
     assert INK_V0F_QNTYSPOT_COMMIT == "91ec941d7e89fc44da0e4501b52f47fc65962020"
     assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
-        "eccb92637e9f496b65efd8baeabf35c9d4828474d3ee95da69b93b81af968990"
+        "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
     )
     assert INK_V0F_GRANT_PREPARATION.schema.endswith(".v9")
     assert INK_V0F_GRANT_PREPARATION_DIGEST == (
-        "18903624f8f78b55859cdada4a2b8255f22673f428a019172abe2c8bd9706459"
+        "8437e963680952795073a90773845cfbd7ba3b053c5268e2310d16996cd06b15"
     )
     assert INK_V0F_GRANT_PREPARATION.preparation_digest == (
         INK_V0F_GRANT_PREPARATION_DIGEST
     )
-
 
 def test_request_builder_uses_only_the_frozen_first_grant_tuple() -> None:
     request = build_ink_v0f_request(issued_at_epoch_s=1_800_000_000, duration_s=900)
