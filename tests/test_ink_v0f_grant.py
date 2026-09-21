@@ -15,14 +15,14 @@ from qnty_authority_root import (
 from qnty_authority_root.ink_v0f_binding import (
     INK_V0F_GRANT_PREPARATION,
     INK_V0F_GRANT_PREPARATION_DIGEST,
-    INK_V0F_LEVEL3_V7_GRANT_PREPARATION_DIGEST,
-    INK_V0F_LEVEL3_V7_GRANT_PREPARATION_SCHEMA,
-    INK_V0F_LEVEL3_V7_QNTYSPOT_COMMIT,
-    INK_V0F_LEVEL3_V7_QNTYSPOT_IMPLEMENTATION_DIGEST,
+    INK_V0F_LEVEL3_V8_GRANT_PREPARATION_DIGEST,
+    INK_V0F_LEVEL3_V8_GRANT_PREPARATION_SCHEMA,
+    INK_V0F_LEVEL3_V8_QNTYSPOT_COMMIT,
+    INK_V0F_LEVEL3_V8_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_TAKER_ADDRESS,
-    InkV0FGrantPreparationV8,
+    InkV0FGrantPreparationV9,
 )
 from qnty_authority_root.ink_v0f_grant import (
     build_ink_v0f_request,
@@ -45,30 +45,29 @@ class EphemeralTestSigner:
         return self._key.sign(message)
 
 
-def test_v8_binding_advances_only_qntyspot_identity_and_preserves_v7_history() -> None:
-    assert INK_V0F_LEVEL3_V7_GRANT_PREPARATION_SCHEMA.endswith(".v7")
-    assert INK_V0F_LEVEL3_V7_QNTYSPOT_COMMIT == (
-        "4973ceaecb204afa84b8655f2e8afef498296efb"
+def test_v9_binding_advances_only_qntyspot_identity_and_preserves_v8_history() -> None:
+    assert INK_V0F_LEVEL3_V8_GRANT_PREPARATION_SCHEMA.endswith(".v8")
+    assert INK_V0F_LEVEL3_V8_QNTYSPOT_COMMIT == (
+        "05c11fee96fdcbf392e4a90b78f8e0207a96ac58"
     )
-    assert INK_V0F_LEVEL3_V7_QNTYSPOT_IMPLEMENTATION_DIGEST == (
-        "7a5d7d8e64b4837426f6bf61fadd41ba7eba0360bb58dd38f93abb0132816cdd"
-    )
-    assert INK_V0F_LEVEL3_V7_GRANT_PREPARATION_DIGEST == (
-        "74386204f43edb8c09aab56da330ad9b6ac06b29c71ec12eead201c0415fe5f5"
-    )
-
-    assert INK_V0F_QNTYSPOT_COMMIT == "05c11fee96fdcbf392e4a90b78f8e0207a96ac58"
-    assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
+    assert INK_V0F_LEVEL3_V8_QNTYSPOT_IMPLEMENTATION_DIGEST == (
         "eccb92637e9f496b65efd8baeabf35c9d4828474d3ee95da69b93b81af968990"
     )
-    assert INK_V0F_GRANT_PREPARATION.schema.endswith(".v8")
-    assert INK_V0F_GRANT_PREPARATION_DIGEST == (
+    assert INK_V0F_LEVEL3_V8_GRANT_PREPARATION_DIGEST == (
         "18903624f8f78b55859cdada4a2b8255f22673f428a019172abe2c8bd9706459"
+    )
+
+    assert INK_V0F_QNTYSPOT_COMMIT == "91ec941d7e89fc44da0e4501b52f47fc65962020"
+    assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
+        "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
+    )
+    assert INK_V0F_GRANT_PREPARATION.schema.endswith(".v9")
+    assert INK_V0F_GRANT_PREPARATION_DIGEST == (
+        "8437e963680952795073a90773845cfbd7ba3b053c5268e2310d16996cd06b15"
     )
     assert INK_V0F_GRANT_PREPARATION.preparation_digest == (
         INK_V0F_GRANT_PREPARATION_DIGEST
     )
-
 
 def test_request_builder_uses_only_the_frozen_first_grant_tuple() -> None:
     request = build_ink_v0f_request(issued_at_epoch_s=1_800_000_000, duration_s=900)
