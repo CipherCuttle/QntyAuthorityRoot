@@ -353,6 +353,161 @@ def test_epoch6_historical_validator_allows_only_real_v2_request_tuple() -> None
     )
 
 
+def test_epoch6_inner_history_validator_accepts_only_expired_exact_scope() -> None:
+    module = _module()
+    t = 2_000_010_000
+    policy = AuthorityPolicyRefV0(
+        authority_root_id="qnty-authority-root-v0",
+        granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
+        permitted_repository_commit="33" * 20,
+        permitted_implementation_digest="44" * 32,
+        permitted_network_id="evm:57073",
+        permitted_taker_address="0x3e604be3293d930069d0805e85379e0ca5fa01cb",
+        permitted_venue_id="inkyswap-v2-ink-mainnet",
+        max_reservation_atomic=10**15,
+        max_cumulative_atomic=10**15,
+        not_before_epoch_s=t,
+        not_after_epoch_s=t + 900,
+    )
+    request = AuthorityIssuanceRequestV0(
+        repository_identity="CipherCuttle/QntySpot",
+        authority_policy=policy,
+        issued_at_epoch_s=t,
+    )
+    receipt = AuthorityGrantReceiptV0(
+        root_id="qnty-authority-root-v0",
+        public_key_fingerprint="11" * 32,
+        signature_algorithm="Ed25519",
+        authority_epoch=6,
+        serial=2,
+        issued_at_epoch_s=t,
+        authority_policy=policy,
+        signature=bytes([1]) * 64,
+    )
+    assert module._allow_expired_historical_epoch6_request(
+        f"ink-v0f-{t}-900",
+        request,
+        receipt,
+        successor_not_before_epoch_s=t + 900,
+    )
+    assert not module._allow_expired_historical_epoch6_request(
+        f"ink-v0f-{t}-900",
+        request,
+        receipt,
+        successor_not_before_epoch_s=t + 899,
+    )
+    assert not module._allow_expired_historical_epoch6_request(
+        f"ink-v0f-{t + 1}-900",
+        request,
+        receipt,
+        successor_not_before_epoch_s=t + 900,
+    )
+
+
+def test_epoch6_current_renewal_survives_signed_superseded_history(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _module()
+    key_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
+    root = _root(tmp_path, public, trust_bytes)
+    _configure(module, monkeypatch, fingerprint, trust_digest)
+    monkeypatch.setattr(
+        module,
+        "_run_read_only_preflight",
+        lambda root, *, now_epoch_s, allow_active_request_id: {"active_ink_grants": []},
+    )
+
+    first_t = 2_000_020_000
+    first = module.issue_once(
+        production_root=root,
+        private_key_path=key_path,
+        issued_at_epoch_s=first_t,
+    )
+    assert first["serial"] == 1
+
+    historical_t = first_t + 901
+    historical_policy = AuthorityPolicyRefV0(
+        authority_root_id="qnty-authority-root-v0",
+        granted_level=AuthorityLevel.HUMAN_SIGNED_EXECUTION,
+        permitted_repository_commit="55" * 20,
+        permitted_implementation_digest="66" * 32,
+        permitted_network_id="evm:57073",
+        permitted_taker_address="0x3e604be3293d930069d0805e85379e0ca5fa01cb",
+        permitted_venue_id="inkyswap-v2-ink-mainnet",
+        max_reservation_atomic=10**15,
+        max_cumulative_atomic=10**15,
+        not_before_epoch_s=historical_t,
+        not_after_epoch_s=historical_t + 900,
+    )
+    unsigned = AuthorityGrantReceiptV0(
+        root_id="qnty-authority-root-v0",
+        public_key_fingerprint=fingerprint,
+        signature_algorithm="Ed25519",
+        authority_epoch=6,
+        serial=2,
+        issued_at_epoch_s=historical_t,
+        authority_policy=historical_policy,
+        signature=bytes(64),
+    )
+    key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+    assert isinstance(key, Ed25519PrivateKey)
+    historical_receipt = AuthorityGrantReceiptV0(
+        root_id=unsigned.root_id,
+        public_key_fingerprint=unsigned.public_key_fingerprint,
+        signature_algorithm=unsigned.signature_algorithm,
+        authority_epoch=unsigned.authority_epoch,
+        serial=unsigned.serial,
+        issued_at_epoch_s=unsigned.issued_at_epoch_s,
+        authority_policy=unsigned.authority_policy,
+        signature=key.sign(unsigned.signed_body_bytes),
+    )
+    historical_request_id = f"ink-v0f-{historical_t}-900"
+    historical_request_bytes = canonical_json_bytes(
+        {
+            "authority_policy": historical_policy.canonical_object(),
+            "issued_at_epoch_s": historical_t,
+            "repository_identity": "CipherCuttle/QntySpot",
+            "request_id": historical_request_id,
+            "schema": "qntyspot.authority_root.v0.issuance_record",
+        }
+    )
+    db = root / module.EPOCH6_RELATIVE_DB
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            "INSERT INTO issuances "
+            "(request_id, request_digest, request_bytes, authority_epoch, serial, receipt_id, receipt_bytes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                historical_request_id,
+                sha256_hex(historical_request_bytes),
+                historical_request_bytes,
+                6,
+                2,
+                historical_receipt.receipt_id,
+                historical_receipt.serialized,
+            ),
+        )
+        connection.commit()
+
+    successor_t = historical_t + 901
+    successor = module.issue_once(
+        production_root=root,
+        private_key_path=key_path,
+        issued_at_epoch_s=successor_t,
+    )
+    assert successor["serial"] == 3
+    successor_receipt = AuthorityGrantReceiptV0.from_bytes(
+        (root / successor["receipt_path"]).read_bytes()
+    )
+    assert successor_receipt.authority_policy.permitted_repository_commit == (
+        "05c11fee96fdcbf392e4a90b78f8e0207a96ac58"
+    )
+    assert successor_receipt.authority_policy.permitted_implementation_digest == (
+        "eccb92637e9f496b65efd8baeabf35c9d4828474d3ee95da69b93b81af968990"
+    )
+
+
 def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     module = _module()
     key_path, public, fingerprint, trust_bytes, trust_digest = _key_material(tmp_path)
