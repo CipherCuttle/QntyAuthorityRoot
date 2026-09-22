@@ -46,15 +46,20 @@ from qnty_authority_root.ink_v0f_binding import (
     INK_V0F_LEVEL3_V8_GRANT_PREPARATION_DIGEST,
     INK_V0F_LEVEL3_V8_QNTYSPOT_COMMIT,
     INK_V0F_LEVEL3_V8_QNTYSPOT_IMPLEMENTATION_DIGEST,
+    INK_V0F_LEVEL3_V9_GRANT_PREPARATION_DIGEST,
+    INK_V0F_LEVEL3_V9_QNTYSPOT_COMMIT,
+    INK_V0F_LEVEL3_V9_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_TAKER_ADDRESS,
-    InkV0FGrantPreparationV9,
+    InkV0FGrantPreparationV10,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V9.json"
+ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V10.json"
 SIDECAR = ARTIFACT.with_suffix(".sha256")
+PREVIOUS_LEVEL3_V9_ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V9.json"
+PREVIOUS_LEVEL3_V9_SIDECAR = PREVIOUS_LEVEL3_V9_ARTIFACT.with_suffix(".sha256")
 PREVIOUS_LEVEL3_V8_ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V8.json"
 PREVIOUS_LEVEL3_V8_SIDECAR = PREVIOUS_LEVEL3_V8_ARTIFACT.with_suffix(".sha256")
 PREVIOUS_LEVEL3_V7_ARTIFACT = ROOT / "artifacts" / "INK_V0F_LEVEL3_GRANT_PREPARATION_V7.json"
@@ -116,9 +121,9 @@ def request() -> AuthorityIssuanceRequestV0:
 def test_exact_user_taker_and_qntyspot_identity_are_frozen() -> None:
     prep = INK_V0F_GRANT_PREPARATION
     assert INK_V0F_TAKER_ADDRESS == "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
-    assert INK_V0F_QNTYSPOT_COMMIT == "91ec941d7e89fc44da0e4501b52f47fc65962020"
+    assert INK_V0F_QNTYSPOT_COMMIT == "c0049f20accffe50c1995a1ad68e587daa130c0d"
     assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
-        "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
+        "89c4227b1476905c54702d9dd90dc7d0cafdd3852f84820fe50aa59a7a32e244"
     )
     assert prep.maximum_issuable_level is AuthorityLevel.HUMAN_SIGNED_EXECUTION
     assert prep.max_reservation_atomic == 1_000_000_000_000_000
@@ -132,6 +137,19 @@ def test_preparation_artifact_is_exact_and_digest_bound() -> None:
     assert INK_V0F_GRANT_PREPARATION.preparation_digest == INK_V0F_GRANT_PREPARATION_DIGEST
     assert SIDECAR.read_text(encoding="ascii") == (
         f"{INK_V0F_GRANT_PREPARATION_DIGEST}  {ARTIFACT.name}\n"
+    )
+
+
+def test_previous_level3_v9_preparation_artifact_remains_immutable() -> None:
+    raw = PREVIOUS_LEVEL3_V9_ARTIFACT.read_bytes()
+    assert INK_V0F_LEVEL3_V9_QNTYSPOT_COMMIT.encode() in raw
+    assert INK_V0F_LEVEL3_V9_QNTYSPOT_IMPLEMENTATION_DIGEST.encode() in raw
+    from qnty_authority_root import sha256_hex
+
+    assert sha256_hex(raw) == INK_V0F_LEVEL3_V9_GRANT_PREPARATION_DIGEST
+    assert PREVIOUS_LEVEL3_V9_SIDECAR.read_text(encoding="ascii") == (
+        f"{INK_V0F_LEVEL3_V9_GRANT_PREPARATION_DIGEST}  "
+        f"{PREVIOUS_LEVEL3_V9_ARTIFACT.name}\n"
     )
 
 
@@ -367,6 +385,6 @@ def test_different_taker_cannot_be_put_in_ink_issuer_policy() -> None:
 
 def test_preparation_object_cannot_be_reconstructed_differently() -> None:
     with pytest.raises(IssuancePolicyError, match="frozen"):
-        InkV0FGrantPreparationV9(
+        InkV0FGrantPreparationV10(
             permitted_taker_address="0x00000000000000000000000000000000000000aa"
         )
