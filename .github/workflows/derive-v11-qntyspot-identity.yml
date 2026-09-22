@@ -1,0 +1,36 @@
+name: derive-v11-qntyspot-identity
+
+on:
+  push:
+    branches:
+      - rebind/ink-v0f-level3-v11-serial8-closure-v0
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact QntySpot main
+        uses: actions/checkout@v4
+        with:
+          repository: CipherCuttle/QntySpot
+          ref: 458abb7cf1c3c2d7e00492fb01f411ce38d7d066
+          path: qntyspot
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Derive canonical deployment identity
+        run: |
+          python qntyspot/scripts/derive_deployment_identity.py \
+            --root qntyspot \
+            --repository-commit 458abb7cf1c3c2d7e00492fb01f411ce38d7d066 \
+            --output /tmp/qntyspot-identity.json
+          python - <<'PY'
+          import json
+          doc=json.load(open("/tmp/qntyspot-identity.json"))
+          print("V11_QNTYSPOT_COMMIT="+doc["provenance"]["repository_commit"])
+          print("V11_IMPLEMENTATION_DIGEST="+doc["implementation_digest"])
+          PY
