@@ -501,10 +501,10 @@ def test_epoch6_current_renewal_survives_signed_superseded_history(
         (root / successor["receipt_path"]).read_bytes()
     )
     assert successor_receipt.authority_policy.permitted_repository_commit == (
-        "91ec941d7e89fc44da0e4501b52f47fc65962020"
+        "c0049f20accffe50c1995a1ad68e587daa130c0d"
     )
     assert successor_receipt.authority_policy.permitted_implementation_digest == (
-        "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
+        "89c4227b1476905c54702d9dd90dc7d0cafdd3852f84820fe50aa59a7a32e244"
     )
 
 
@@ -542,10 +542,10 @@ def test_epoch6_exact_retry_is_idempotent(tmp_path: Path, monkeypatch) -> None:
     assert receipt.issued_at_epoch_s == t
     assert receipt.authority_policy.not_after_epoch_s == t + 900
     assert receipt.authority_policy.permitted_repository_commit == (
-        "91ec941d7e89fc44da0e4501b52f47fc65962020"
+        "c0049f20accffe50c1995a1ad68e587daa130c0d"
     )
     assert receipt.authority_policy.permitted_implementation_digest == (
-        "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
+        "89c4227b1476905c54702d9dd90dc7d0cafdd3852f84820fe50aa59a7a32e244"
     )
 
 
