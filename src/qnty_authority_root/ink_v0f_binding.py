@@ -129,23 +129,34 @@ INK_V0F_LEVEL3_V8_GRANT_PREPARATION_DIGEST = (
     "18903624f8f78b55859cdada4a2b8255f22673f428a019172abe2c8bd9706459"
 )
 
-INK_V0F_GRANT_PREPARATION_SCHEMA = (
+INK_V0F_LEVEL3_V9_GRANT_PREPARATION_SCHEMA = (
     "qnty.authority_root.ink_v0f_level3_grant_preparation.v9"
+)
+INK_V0F_LEVEL3_V9_QNTYSPOT_COMMIT = "91ec941d7e89fc44da0e4501b52f47fc65962020"
+INK_V0F_LEVEL3_V9_QNTYSPOT_IMPLEMENTATION_DIGEST = (
+    "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
+)
+INK_V0F_LEVEL3_V9_GRANT_PREPARATION_DIGEST = (
+    "8437e963680952795073a90773845cfbd7ba3b053c5268e2310d16996cd06b15"
+)
+
+INK_V0F_GRANT_PREPARATION_SCHEMA = (
+    "qnty.authority_root.ink_v0f_level3_grant_preparation.v10"
 )
 INK_V0F_AUTHORITY_ROOT_ID = "qnty-authority-root-v0"
 INK_V0F_REPOSITORY_IDENTITY = "CipherCuttle/QntySpot"
-INK_V0F_QNTYSPOT_COMMIT = "91ec941d7e89fc44da0e4501b52f47fc65962020"
+INK_V0F_QNTYSPOT_COMMIT = "c0049f20accffe50c1995a1ad68e587daa130c0d"
 INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST = (
-    "dbcbab558ad591d195fcee06951389d1eb566fed40d9b211b8e5578f61b14f81"
+    "89c4227b1476905c54702d9dd90dc7d0cafdd3852f84820fe50aa59a7a32e244"
 )
 INK_V0F_TAKER_ADDRESS = "0x3e604be3293d930069d0805e85379e0ca5fa01cb"
 INK_V0F_GRANT_PREPARATION_DIGEST = (
-    "8437e963680952795073a90773845cfbd7ba3b053c5268e2310d16996cd06b15"
+    "c963031978507d37bdb6d250afe4e911699c4e561811608a677b88cd3d990247"
 )
 
 
 @dataclass(frozen=True, slots=True)
-class InkV0FGrantPreparationV9:
+class InkV0FGrantPreparationV10:
     authority_root_id: str = INK_V0F_AUTHORITY_ROOT_ID
     repository_identity: str = INK_V0F_REPOSITORY_IDENTITY
     permitted_repository_commit: str = INK_V0F_QNTYSPOT_COMMIT
@@ -237,18 +248,19 @@ class InkV0FGrantPreparationV9:
 
 
 # Backward-compatible aliases for callers that imported earlier class names.
-# Current issuance is always the V9 frozen tuple above.
-InkV0FGrantPreparationV8 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV7 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV6 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV5 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV4 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV3 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV2 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV1 = InkV0FGrantPreparationV9
-InkV0FGrantPreparationV0 = InkV0FGrantPreparationV9
+# Current issuance is always the V10 frozen tuple above.
+InkV0FGrantPreparationV9 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV8 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV7 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV6 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV5 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV4 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV3 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV2 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV1 = InkV0FGrantPreparationV10
+InkV0FGrantPreparationV0 = InkV0FGrantPreparationV10
 
-INK_V0F_GRANT_PREPARATION = InkV0FGrantPreparationV9()
+INK_V0F_GRANT_PREPARATION = InkV0FGrantPreparationV10()
 if INK_V0F_GRANT_PREPARATION.preparation_digest != INK_V0F_GRANT_PREPARATION_DIGEST:
     raise RuntimeError("Ink V0F grant preparation digest invariant failed")
 
