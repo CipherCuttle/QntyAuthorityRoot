@@ -23,10 +23,14 @@ from qnty_authority_root.ink_v0f_binding import (
     INK_V0F_LEVEL3_V9_GRANT_PREPARATION_SCHEMA,
     INK_V0F_LEVEL3_V9_QNTYSPOT_COMMIT,
     INK_V0F_LEVEL3_V9_QNTYSPOT_IMPLEMENTATION_DIGEST,
+    INK_V0F_LEVEL3_V10_GRANT_PREPARATION_DIGEST,
+    INK_V0F_LEVEL3_V10_GRANT_PREPARATION_SCHEMA,
+    INK_V0F_LEVEL3_V10_QNTYSPOT_COMMIT,
+    INK_V0F_LEVEL3_V10_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_QNTYSPOT_COMMIT,
     INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST,
     INK_V0F_TAKER_ADDRESS,
-    InkV0FGrantPreparationV10,
+    InkV0FGrantPreparationV11,
 )
 from qnty_authority_root.ink_v0f_grant import (
     build_ink_v0f_request,
@@ -49,7 +53,7 @@ class EphemeralTestSigner:
         return self._key.sign(message)
 
 
-def test_v10_binding_advances_only_qntyspot_identity_and_preserves_v9_history() -> None:
+def test_v11_binding_advances_commit_only_and_preserves_v10_history() -> None:
     assert INK_V0F_LEVEL3_V9_GRANT_PREPARATION_SCHEMA.endswith(".v9")
     assert INK_V0F_LEVEL3_V9_QNTYSPOT_COMMIT == (
         "91ec941d7e89fc44da0e4501b52f47fc65962020"
@@ -61,15 +65,26 @@ def test_v10_binding_advances_only_qntyspot_identity_and_preserves_v9_history() 
         "8437e963680952795073a90773845cfbd7ba3b053c5268e2310d16996cd06b15"
     )
 
-    assert INK_V0F_QNTYSPOT_COMMIT == "c0049f20accffe50c1995a1ad68e587daa130c0d"
+    assert INK_V0F_LEVEL3_V10_GRANT_PREPARATION_SCHEMA.endswith(".v10")
+    assert INK_V0F_LEVEL3_V10_QNTYSPOT_COMMIT == (
+        "c0049f20accffe50c1995a1ad68e587daa130c0d"
+    )
+    assert INK_V0F_LEVEL3_V10_QNTYSPOT_IMPLEMENTATION_DIGEST == (
+        "89c4227b1476905c54702d9dd90dc7d0cafdd3852f84820fe50aa59a7a32e244"
+    )
+    assert INK_V0F_LEVEL3_V10_GRANT_PREPARATION_DIGEST == (
+        "c963031978507d37bdb6d250afe4e911699c4e561811608a677b88cd3d990247"
+    )
+
+    assert INK_V0F_QNTYSPOT_COMMIT == "458abb7cf1c3c2d7e00492fb01f411ce38d7d066"
     assert INK_V0F_QNTYSPOT_IMPLEMENTATION_DIGEST == (
         "89c4227b1476905c54702d9dd90dc7d0cafdd3852f84820fe50aa59a7a32e244"
     )
-    assert INK_V0F_GRANT_PREPARATION.schema.endswith(".v10")
+    assert INK_V0F_GRANT_PREPARATION.schema.endswith(".v11")
     assert INK_V0F_GRANT_PREPARATION_DIGEST == (
-        "c963031978507d37bdb6d250afe4e911699c4e561811608a677b88cd3d990247"
+        "f4fc955dc3f489194a1301975030854f3e68d7bf652d7db5e591b48764ee530b"
     )
-    assert isinstance(INK_V0F_GRANT_PREPARATION, InkV0FGrantPreparationV10)
+    assert isinstance(INK_V0F_GRANT_PREPARATION, InkV0FGrantPreparationV11)
     assert INK_V0F_GRANT_PREPARATION.preparation_digest == (
         INK_V0F_GRANT_PREPARATION_DIGEST
     )
